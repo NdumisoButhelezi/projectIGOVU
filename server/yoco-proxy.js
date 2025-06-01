@@ -11,6 +11,12 @@ const allowedOrigins = [
   'http://localhost:5173',
   'https://project-igovu.vercel.app'
 ];
+// CORS middleware should be first
+app.use((req, res, next) => {
+  // Debug: log the incoming origin
+  console.log('CORS Origin:', req.headers.origin);
+  next();
+});
 app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps, curl, etc.)
