@@ -8,9 +8,10 @@ interface ProductCardProps {
   product: Product;
   onAddToCart: (product: Product) => void;
   onOpenAuth: () => void;
+  compact?: boolean;
 }
 
-export default function ProductCard({ product, onAddToCart, onOpenAuth }: ProductCardProps) {
+export default function ProductCard({ product, onAddToCart, onOpenAuth, compact = false }: ProductCardProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const { currentUser } = useAuth();
 
@@ -35,94 +36,42 @@ export default function ProductCard({ product, onAddToCart, onOpenAuth }: Produc
 
   return (
     <Link 
-      to={`/product/${product.id}`}
-      className="group relative bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300"
+      to={compact ? "#" : `/product/${product.id}`}
+      onClick={compact ? (e) => { e.preventDefault(); onAddToCart && onAddToCart(product); } : undefined}
+      className={`group relative bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 ${compact ? 'p-2 flex flex-row items-center min-h-[80px]' : ''}`}
+      style={compact ? { minHeight: 80, maxWidth: 320 } : {}}
     >
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className={compact ? 'flex items-center gap-4' : 'grid lg:grid-cols-2 gap-6'}>
         {/* Image Gallery */}
-        <div className="aspect-w-4 aspect-h-5 w-full overflow-hidden rounded-t-2xl lg:rounded-l-2xl lg:rounded-tr-none bg-gray-100 relative">
+        <div className={compact ? 'w-16 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100' : 'aspect-w-4 aspect-h-5 w-full overflow-hidden rounded-t-2xl lg:rounded-l-2xl lg:rounded-tr-none bg-gray-100 relative'}>
           <img
-            src={product.images[currentImageIndex]}
+            src={product.images[0]}
             alt={product.name}
-            className="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+            className={compact ? 'w-full h-full object-cover object-center' : 'h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-105'}
           />
-          
-          {/* Navigation Arrows */}
-          {product.images.length > 1 && (
-            <>
-              <button
-                onClick={prevImage}
-                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/80 text-white rounded-full p-1.5 sm:p-2 opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-black"
-              >
-                <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
-              </button>
-              <button
-                onClick={nextImage}
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/80 text-white rounded-full p-1.5 sm:p-2 opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-black"
-              >
-                <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
-              </button>
-            </>
-          )}
-
-          {/* Price Tag */}
-          <div className="absolute top-4 right-4 bg-black text-white px-3 py-1.5 rounded-full font-bold shadow-lg">
-            R {product.price.toFixed(2)}
-          </div>
         </div>
-
         {/* Product Info */}
-        <div className="p-6 space-y-4">
+        <div className={compact ? 'flex-1 min-w-0' : 'p-6 space-y-4'}>
           <div>
-            <h3 className="text-xl font-bold text-gray-900">{product.name}</h3>
-            <p className="mt-2 text-gray-600 line-clamp-3">{product.description}</p>
+            <h3 className={`font-bold text-gray-900 ${compact ? 'text-base truncate' : 'text-xl'}`}>{product.name}</h3>
+            {/* Only show description in full card, not compact */}
+            {!compact && <p className="mt-2 text-gray-600 line-clamp-3">{product.description}</p>}
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            {product.size.map(size => (
+          <div className={compact ? 'flex gap-2 mt-1' : 'flex flex-wrap gap-2'}>
+            {product.size.slice(0, compact ? 2 : product.size.length).map(size => (
               <span 
                 key={size}
-                className="px-3 py-1 border rounded-full text-sm font-medium"
+                className={`border rounded-full text-xs font-medium px-2 py-0.5 ${compact ? '' : 'px-3 py-1 text-sm'}`}
               >
                 {size}
               </span>
             ))}
+            {compact && product.size.length > 2 && <span className="text-xs text-gray-400">+{product.size.length - 2} more</span>}
           </div>
-
-          <div className="flex gap-3 pt-4">
-            <button
-              onClick={handleAddToCart}
-              className="flex-1 flex items-center justify-center gap-2 bg-black text-white px-4 py-2 rounded-xl hover:bg-gray-800 transition-all"
-            >
-              {currentUser ? (
-                <>
-                  <ShoppingCart className="h-4 w-4" />
-                  Add to Cart
-                </>
-              ) : (
-                <>
-                  <LogIn className="h-4 w-4" />
-                  Sign in to Buy
-                </>
-              )}
-            </button>
-            
-            {product.whatsapp && (
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  const message = encodeURIComponent(
-                    `Hi, I'm interested in the ${product.name}. Can you provide more information?`
-                  );
-                  window.open(`https://wa.me/${product.whatsapp}?text=${message}`, '_blank');
-                }}
-                className="flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-xl hover:bg-green-600 transition-all"
-              >
-                <MessageCircle className="h-4 w-4" />
-                Inquire
-              </button>
-            )}
+          <div className={compact ? 'mt-1' : 'flex gap-3 pt-4'}>
+            <span className="font-bold text-black">R {product.price.toFixed(2)}</span>
           </div>
+          {/* Do not render tabs or extra info in compact mode */}
         </div>
       </div>
     </Link>

@@ -142,14 +142,17 @@ export default function Checkout({ isOpen, onClose, items, onCheckoutComplete }:
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Full Name 👤</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name 👤</label>
                   <input
                     type="text"
                     name="name"
                     required
                     value={formData.name}
                     onChange={handleInputChange}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
+                    placeholder="Enter your full name"
+                    autoCapitalize="words"
+                    autoComplete="name"
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm py-2 px-3"
                   />
                 </div>
 
