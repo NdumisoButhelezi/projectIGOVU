@@ -47,7 +47,7 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
       ? 'https://project-igovu.vercel.app/api'
       : 'http://localhost:4000/api';
 
-  // Call createCheckoutBase with only one argument
+  // Call createCheckoutBase with the correct base URL
   const createCheckout = (data: any) => createCheckoutBase(data);
 
   const handleSubmitDelivery = async (e: React.FormEvent) => {
