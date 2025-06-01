@@ -15,7 +15,23 @@ const allowedOrigins = [
 app.use((req, res, next) => {
   // Debug: log the incoming origin
   console.log('CORS Origin:', req.headers.origin);
-  next();
+  const origin = req.headers.origin;
+  if (
+    !origin ||
+    allowedOrigins.includes(origin) ||
+    /^https:\/\/.*\.vercel\.app$/.test(origin)
+  ) {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Vary', 'Origin');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    return next();
+  }
+  return res.status(403).json({ error: 'Not allowed by CORS' });
 });
 app.use(cors({
   origin: function(origin, callback) {
