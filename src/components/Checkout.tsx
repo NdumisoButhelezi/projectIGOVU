@@ -1,17 +1,16 @@
 import React, { useState } from 'react';
 import { X, Truck, MapPin } from 'lucide-react';
 import { CartItem, CheckoutFormData } from '../types';
-import { createCheckout } from '../services/yoco';
+import { createCheckout as createCheckoutBase } from '../services/yoco';
 import { useAuth } from '../contexts/AuthContext';
 
 interface CheckoutProps {
   isOpen: boolean;
   onClose: () => void;
   items: CartItem[];
-  onCheckoutComplete: () => void;
 }
 
-export default function Checkout({ isOpen, onClose, items, onCheckoutComplete }: CheckoutProps) {
+export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
   const { currentUser } = useAuth();
   const [step, setStep] = useState<'delivery' | 'processing'>('delivery');
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +40,15 @@ export default function Checkout({ isOpen, onClose, items, onCheckoutComplete }:
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+
+  // Determine API base URL
+  const API_BASE_URL =
+    window.location.hostname.endsWith('.vercel.app') || window.location.hostname === 'project-igovu.vercel.app'
+      ? 'https://project-igovu.vercel.app/api'
+      : 'http://localhost:4000/api';
+
+  // Call createCheckoutBase with only one argument
+  const createCheckout = (data: any) => createCheckoutBase(data);
 
   const handleSubmitDelivery = async (e: React.FormEvent) => {
     e.preventDefault();
