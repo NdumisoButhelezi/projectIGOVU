@@ -48,7 +48,7 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
       : 'http://localhost:4000/api';
 
   // Call createCheckoutBase with the correct base URL
-  const createCheckout = (data: any) => createCheckoutBase(data);
+  const createCheckout = (data: any) => createCheckoutBase(data, API_BASE_URL);
 
   const handleSubmitDelivery = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,3 +1,5 @@
+import axios from 'axios';
+
 const API_URL = 'http://localhost:4000/api';
 
 interface CreateCheckoutParams {
@@ -9,27 +11,14 @@ interface CreateCheckoutParams {
   metadata?: Record<string, any>;
 }
 
-export const createCheckout = async (params: CreateCheckoutParams) => {
-  const res = await fetch(`${API_URL}/yoco-checkout`, {
-    method: 'POST',
+export const createCheckout = async (params: CreateCheckoutParams, baseUrl?: string) => {
+  const apiUrl = baseUrl ? `${baseUrl}/yoco-checkout` : '/api/yoco-checkout';
+  const res = await axios.post(apiUrl, params, {
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(params),
   });
-  if (!res.ok) {
-    let errorText = '';
-    let errorBody: any = null;
-    try {
-      errorBody = await res.json();
-      errorText = errorBody.error?.message || JSON.stringify(errorBody) || 'Failed to create checkout';
-    } catch {
-      // If not JSON, try to get plain text
-      errorText = await res.text();
-    }
-    throw new Error(errorText || 'Failed to create checkout');
-  }
-  return await res.json();
+  return res.data;
 };
 
 export const verifyPayment = async (checkoutId: string) => {
