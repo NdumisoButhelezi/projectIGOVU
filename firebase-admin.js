@@ -1,7 +1,11 @@
-const admin = require('firebase-admin');
-const dotenv = require('dotenv');
+// Universal module compatible with CommonJS and ES Modules
+import * as adminPkg from 'firebase-admin';
+import dotenv from 'dotenv';
 
 dotenv.config();
+
+// Handle ES modules and CommonJS interop
+const admin = adminPkg.default ?? adminPkg;
 
 // Initialize Firebase Admin SDK
 if (!admin.apps.length) {
@@ -23,4 +27,8 @@ if (!admin.apps.length) {
   });
 }
 
+// Export as both CommonJS and ES Module
+export default admin;
+export { admin };
+// Legacy CommonJS support
 module.exports = admin;

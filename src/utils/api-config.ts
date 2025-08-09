@@ -25,6 +25,8 @@ export const API_ENDPOINTS = {
   YOCO_CHECKOUT: '/yoco-checkout',
   COURIERGUY_QUOTE: '/courierguy-quote',
   SYNC_STOCK: '/sync-stock',
+  PROCESS_STOCK_QUEUE: '/process-stock-queue',
+  CHECK_STOCK: '/check-stock',
   GEOCODE: '/geocode',
   HELLO: '/hello',
 } as const;

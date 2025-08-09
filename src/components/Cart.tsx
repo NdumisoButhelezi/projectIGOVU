@@ -1,6 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { CartItem } from '../types';
+import StockStatus from './StockStatus';
 
 interface CartProps {
   isOpen: boolean;
@@ -91,6 +92,8 @@ export default function Cart({ isOpen, onClose, items, onUpdateQuantity, onRemov
             </div>
 
             <div className="border-t border-gray-200 py-6 px-4 sm:px-6">
+              <StockStatus items={items} />
+              
               <div className="flex justify-between text-base font-medium text-gray-900">
                 <p>Subtotal</p>
                 <p>{formatCurrency(total)}</p>

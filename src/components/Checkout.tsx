@@ -190,19 +190,61 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
         timestamp: new Date().toISOString(),
       };
 
-      await logTransaction(transactionData);
+      // First log the transaction
+      const transactionRef = await logTransaction(transactionData);
 
-      // Deplete stock immediately after logging the transaction
-      for (const item of items) {
-        const response = await fetch(buildApiUrl(API_ENDPOINTS.SYNC_STOCK), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ productId: item.id, quantity: item.quantity }),
-        });
+      // Deplete stock with better error handling and retry logic
+      const stockUpdatePromises = items.map(async (item) => {
+        try {
+          const stockSyncUrl = buildApiUrl(API_ENDPOINTS.SYNC_STOCK);
+          console.log(`Syncing stock for product ${item.id} at URL: ${stockSyncUrl}`);
+          
+          const response = await fetch(stockSyncUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              productId: item.id, 
+              quantity: item.quantity,
+              action: 'reduce',
+              transactionId: transactionRef?.id || 'unknown',
+            }),
+          });
 
-        if (!response.ok) {
-          console.error(`Failed to deplete stock for product ID ${item.id}`);
+          if (!response.ok) {
+            // Even if the API fails, we continue with checkout since the queue will handle retries
+            const errorData = await response.json().catch(() => ({}));
+            console.warn(
+              `Stock sync warning for product ID ${item.id}: HTTP ${response.status}`,
+              errorData
+            );
+            return { success: false, productId: item.id, error: errorData };
+          }
+          
+          const responseData = await response.json();
+          console.log(`Stock sync success for product ID ${item.id}`, responseData);
+          return { success: true, productId: item.id, data: responseData };
+        } catch (error) {
+          // Log the error but don't block the checkout
+          console.error(`Stock sync error for product ID ${item.id}:`, error);
+          return { 
+            success: false, 
+            productId: item.id, 
+            error: error instanceof Error ? error.message : String(error) 
+          };
         }
+      });
+      
+      // Wait for all stock updates to complete (success or failure)
+      const stockResults = await Promise.allSettled(stockUpdatePromises);
+      console.log('Stock sync results:', stockResults);
+      
+      // Record any failed stock updates to retry later
+      const failedUpdates = stockResults
+        .filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success))
+        .map(r => r.status === 'fulfilled' ? r.value : { success: false, error: r.reason });
+      
+      if (failedUpdates.length > 0) {
+        console.warn(`${failedUpdates.length} stock updates failed, will retry later:`, failedUpdates);
       }
 
       const checkoutData = {
