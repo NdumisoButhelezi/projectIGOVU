@@ -1,7 +1,6 @@
-// Remove the proxy URL since we're handling the logic directly in this serverless function
 // Direct Yoco API integration for serverless deployment
 
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -72,4 +71,4 @@ export default async function handler(req, res) {
       message: err.message
     });
   }
-}
+};

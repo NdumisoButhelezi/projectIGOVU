@@ -1,4 +1,4 @@
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -48,4 +48,4 @@ export default async function handler(req, res) {
     console.error('Geocoding error:', error);
     res.status(500).json({ error: 'Failed to fetch geocoding data' });
   }
-}
+};
