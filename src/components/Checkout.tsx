@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Truck, MapPin } from 'lucide-react';
 import { CartItem, CheckoutFormData } from '../types';
 import { createCheckout as createCheckoutBase } from '../services/yoco';
 import { useAuth } from '../contexts/AuthContext';
+import OSMAddressInput from './OSMAddressInput';
+import { logTransaction } from '../services/logTransaction';
 
 interface CheckoutProps {
   isOpen: boolean;
@@ -23,10 +25,14 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
     zipCode: '',
     deliveryMethod: 'delivery'
   });
+  const [deliveryFee, setDeliveryFee] = useState<number | null>(null);
+  const [isFetchingDeliveryFee, setIsFetchingDeliveryFee] = useState(false);
+  const [deliveryFeeError, setDeliveryFeeError] = useState<string | null>(null);
+  const [availableRates, setAvailableRates] = useState<any[]>([]);
+  const [geoAddress, setGeoAddress] = useState<any>(null);
 
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const deliveryFee = formData.deliveryMethod === 'delivery' && items.length === 1 ? 60 : 0;
-  const finalTotal = total + deliveryFee;
+  const finalTotal = total + (deliveryFee || 0);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-ZA', {
@@ -42,13 +48,124 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
   };
 
   // Determine API base URL
-  const API_BASE_URL =
-    window.location.hostname.endsWith('.vercel.app') || window.location.hostname === 'project-igovu.vercel.app'
-      ? 'https://project-igovu.vercel.app/api'
-      : 'http://localhost:4000/api';
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
-  // Call createCheckoutBase with the correct base URL
-  const createCheckout = (data: any) => createCheckoutBase(data, API_BASE_URL);
+  // Call createCheckoutBase with the correct proxy URL
+  const createCheckout = async (data: any) => {
+    try {
+      const apiUrl = `${API_BASE_URL}/yoco-checkout`; // Ensure correct URL
+      console.log('Sending payload to /api/yoco-checkout:', JSON.stringify(data, null, 2)); // Debug log
+      const response = await createCheckoutBase(data, apiUrl);
+      console.log('Yoco Checkout API Response:', response); // Debug log
+      return response;
+    } catch (error: any) {
+      console.error('Yoco Checkout API Error:', error.response || error.message); // Debug log
+      throw error;
+    }
+  };
+
+  // Fetch delivery fee from Courier Guy API when delivery details change
+  useEffect(() => {
+    async function fetchDeliveryFee() {
+      if (
+        formData.deliveryMethod === 'delivery' &&
+        formData.address &&
+        formData.city &&
+        formData.country &&
+        formData.zipCode &&
+        formData.name // Ensure customerName is not empty
+      ) {
+        setIsFetchingDeliveryFee(true);
+        setDeliveryFeeError(null);
+        try {
+          const apiUrl = `${API_BASE_URL}/courierguy-quote`;
+
+          const collection_address = {
+            type: 'business',
+            company: 'iGovu Clothing',
+            street_address: 'Block Y Unit 33',
+            local_area: 'Glebelands',
+            city: 'uMlazi',
+            zone: 'KwaZulu-Natal',
+            country: 'ZA',
+            code: '4031',
+            lat: -29.9707,
+            lng: 30.9188,
+          };
+
+          const delivery_address = {
+            type: 'residential',
+            company: formData.name, // Ensure customerName is included
+            street_address: formData.address,
+            local_area: '',
+            city: formData.city,
+            zone: formData.city || 'Durban',
+            country: formData.country,
+            code: formData.zipCode,
+            lat: geoAddress?.properties?.lat || null,
+            lng: geoAddress?.properties?.lon || null,
+          };
+
+          const parcels = items.map(item => ({
+            submitted_length_cm: item.length_cm ?? 20,
+            submitted_width_cm: item.width_cm ?? 20,
+            submitted_height_cm: item.height_cm ?? 10,
+            submitted_weight_kg: item.weight_kg ?? 1,
+          }));
+
+          const declared_value = total;
+
+          const payload = {
+            metadata: {
+              deliveryMethod: formData.deliveryMethod,
+              customerName: formData.name,
+              deliveryAddress: `${formData.address}, ${formData.city}, ${formData.country}`,
+            },
+            collection_address,
+            delivery_address,
+            parcels,
+            declared_value,
+          };
+
+          console.log('Payload being sent to /api/courierguy-quote:', JSON.stringify(payload, null, 2)); // Debug log
+
+          const res = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            setDeliveryFeeError(data.error ? JSON.stringify(data.error) : 'Failed to fetch delivery quote');
+            setDeliveryFee(null);
+            setAvailableRates([]);
+            return;
+          }
+
+          const data = await res.json();
+          let fee = 0;
+          let availableRates = [];
+          if (data.rates && Array.isArray(data.rates) && data.rates.length > 0) {
+            availableRates = data.rates;
+            fee = data.rates[0].rate;
+          }
+          setDeliveryFee(fee);
+          setAvailableRates(availableRates);
+          console.log('CourierGuy Quote API response:', data);
+        } catch (err) {
+          setDeliveryFeeError('Could not fetch delivery fee. Please check your address or try again later.');
+          setDeliveryFee(null);
+          console.error('CourierGuy Quote Error:', err);
+        } finally {
+          setIsFetchingDeliveryFee(false);
+        }
+      } else {
+        setDeliveryFee(null);
+      }
+    }
+    fetchDeliveryFee();
+  }, [formData.deliveryMethod, formData.address, formData.city, formData.country, formData.zipCode, formData.name, items]);
 
   const handleSubmitDelivery = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,30 +173,56 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
     setError(null);
 
     try {
+      const transactionData = {
+        customerName: formData.name,
+        customerEmail: currentUser?.email || '',
+        amount: finalTotal,
+        deliveryMethod: formData.deliveryMethod,
+        deliveryAddress: formData.deliveryMethod === 'delivery'
+          ? `${formData.address}, ${formData.city}, ${formData.country}`
+          : 'Pickup',
+        deliveryFee: String(deliveryFee ?? 0), // Convert deliveryFee to string
+        items: items.map(item => ({ id: item.id, quantity: item.quantity })),
+        status: 'initiated',
+        timestamp: new Date().toISOString(),
+      };
+
+      await logTransaction(transactionData);
+
+      // Deplete stock immediately after logging the transaction
+      for (const item of items) {
+        const response = await fetch(`${API_BASE_URL}/sync-stock`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ productId: item.id, quantity: item.quantity }),
+        });
+
+        if (!response.ok) {
+          console.error(`Failed to deplete stock for product ID ${item.id}`);
+        }
+      }
+
       const checkoutData = {
         amount: Math.round(finalTotal * 100),
         currency: 'ZAR',
-        successUrl: `${window.location.origin.replace('http://', 'https://')}/payment-success`,
-        cancelUrl: `${window.location.origin.replace('http://', 'https://')}/payment-cancelled`,
-        failureUrl: `${window.location.origin.replace('http://', 'https://')}/payment-failed`,
+        successUrl: `${window.location.origin}/payment-success`,
+        cancelUrl: `${window.location.origin}/payment-cancelled`,
+        failureUrl: `${window.location.origin}/payment-failed`,
         metadata: {
-          customerName: formData.name,
-          customerEmail: currentUser?.email || '',
-          deliveryMethod: formData.deliveryMethod,
-          deliveryAddress: formData.deliveryMethod === 'delivery' 
-            ? `${formData.address}, ${formData.city}, ${formData.country}` 
-            : 'Pickup',
-          items: items.map(item => ({
-            id: item.id,
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price
-          }))
+          customerName: String(formData.name),
+          customerEmail: String(currentUser?.email || ''),
+          deliveryMethod: String(formData.deliveryMethod),
+          deliveryAddress: String(
+            formData.deliveryMethod === 'delivery'
+              ? `${formData.address}, ${formData.city}, ${formData.country}`
+              : 'Pickup'
+          ),
+          deliveryFee: String(deliveryFee ?? 0),
+          items: items.map(item => ({ id: item.id, quantity: item.quantity })), // Store items as an array
         }
       };
 
       const checkout = await createCheckout(checkoutData);
-      
       if (checkout.redirectUrl) {
         window.location.href = checkout.redirectUrl;
       } else {
@@ -130,7 +273,13 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
                     <Truck className="h-6 w-6 mx-auto mb-2" />
                     <div className="font-medium">Delivery</div>
                     <div className="text-sm mt-1">
-                      {items.length > 1 ? 'Free Delivery! 🎉' : formatCurrency(60) + ' to nearest Pep Store'}
+                      {isFetchingDeliveryFee
+                        ? 'Fetching delivery fee...'
+                        : deliveryFeeError
+                        ? 'Error fetching delivery fee'
+                        : deliveryFee !== null
+                        ? formatCurrency(deliveryFee)
+                        : 'Enter address for quote'}
                     </div>
                   </button>
 
@@ -166,57 +315,19 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
 
                 {formData.deliveryMethod === 'delivery' && (
                   <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Address 🏠</label>
-                      <input
-                        type="text"
-                        name="address"
-                        required
-                        value={formData.address}
-                        onChange={handleInputChange}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">City 🌆</label>
-                        <input
-                          type="text"
-                          name="city"
-                          required
-                          value={formData.city}
-                          onChange={handleInputChange}
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700">ZIP Code 📮</label>
-                        <input
-                          type="text"
-                          name="zipCode"
-                          required
-                          value={formData.zipCode}
-                          onChange={handleInputChange}
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Country 🌍</label>
-                      <select
-                        name="country"
-                        required
-                        value={formData.country}
-                        onChange={handleInputChange}
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
-                      >
-                        <option value="">Select country</option>
-                        <option value="ZA">South Africa</option>
-                      </select>
-                    </div>
+                    <OSMAddressInput
+                      value={formData.address}
+                      onSelect={result => {
+                        setGeoAddress(result);
+                        setFormData(prev => ({
+                          ...prev,
+                          address: result?.properties?.address_line1 || result?.properties?.formatted || '',
+                          city: result?.properties?.city || '',
+                          zipCode: result?.properties?.postcode || '',
+                          country: result?.properties?.country_code?.toUpperCase() || '',
+                        }));
+                      }}
+                    />
                   </div>
                 )}
 
@@ -225,11 +336,48 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
                     <span>Subtotal</span>
                     <span>{formatCurrency(total)}</span>
                   </div>
-                  {deliveryFee > 0 && (
-                    <div className="flex justify-between text-sm text-gray-600 mb-4">
-                      <span>Delivery Fee</span>
-                      <span>{formatCurrency(deliveryFee)}</span>
-                    </div>
+                  {formData.deliveryMethod === 'delivery' && (
+                    <>
+                      {isFetchingDeliveryFee && (
+                        <div className="flex justify-between text-sm text-gray-600 mb-4">
+                          <span>Delivery Fee</span>
+                          <span>Fetching...</span>
+                        </div>
+                      )}
+                      {deliveryFeeError && (
+                        <div className="flex justify-between text-sm text-red-600 mb-4">
+                          <span>Delivery Fee</span>
+                          <span>{deliveryFeeError}</span>
+                        </div>
+                      )}
+                      {deliveryFee !== null && !isFetchingDeliveryFee && !deliveryFeeError && (
+                        <div className="flex justify-between text-sm text-gray-600 mb-4">
+                          <span>Delivery Fee</span>
+                          <span>{formatCurrency(deliveryFee)}</span>
+                        </div>
+                      )}
+
+                      {availableRates.length > 1 && (
+                        <div className="mb-4">
+                          <div className="font-semibold mb-2">Choose a delivery option:</div>
+                          {availableRates.map((rate, idx) => (
+                            <div key={idx} className="flex justify-between items-center mb-2 p-2 border rounded">
+                              <div>
+                                <div className="font-medium">{rate.service_level?.name || 'Option ' + (idx + 1)}</div>
+                                <div className="text-xs text-gray-500">{rate.service_level?.description}</div>
+                              </div>
+                              <button
+                                type="button"
+                                className={`px-3 py-1 rounded ${deliveryFee === rate.rate ? 'bg-black text-white' : 'bg-gray-100'}`}
+                                onClick={() => setDeliveryFee(rate.rate)}
+                              >
+                                {formatCurrency(rate.rate)}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
                   <div className="flex justify-between text-xl font-bold">
                     <span>Total</span>
@@ -240,9 +388,39 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
                 <button
                   type="submit"
                   className="w-full btn-primary"
+                  disabled={formData.deliveryMethod === 'delivery' && (isFetchingDeliveryFee || !!deliveryFeeError || deliveryFee === null)}
                 >
                   Proceed to Payment 💳
                 </button>
+              </div>
+
+              <div className="mb-4 p-4 bg-gray-100 border border-gray-300 rounded-md">
+                <h3 className="font-semibold mb-2">Checkout Payload (Debug)</h3>
+                <pre style={{ fontSize: '0.85em', background: '#f9f9f9', padding: '8px', borderRadius: '4px', overflowX: 'auto' }}>
+                  {JSON.stringify(
+                    {
+                      amount: Math.round(finalTotal * 100),
+                      currency: 'ZAR',
+                      successUrl: `${window.location.origin}/payment-success`,
+                      cancelUrl: `${window.location.origin}/payment-cancelled`,
+                      failureUrl: `${window.location.origin}/payment-failed`,
+                      metadata: {
+                        customerName: String(formData.name),
+                        customerEmail: String(currentUser?.email || ''),
+                        deliveryMethod: String(formData.deliveryMethod),
+                        deliveryAddress: String(
+                          formData.deliveryMethod === 'delivery'
+                            ? `${formData.address}, ${formData.city}, ${formData.country}`
+                            : 'Pickup'
+                        ),
+                        deliveryFee: String(deliveryFee ?? 0),
+                        items: items.map(item => ({ id: item.id, quantity: item.quantity })),
+                      }
+                    },
+                    null,
+                    2
+                  )}
+                </pre>
               </div>
             </form>
           )}

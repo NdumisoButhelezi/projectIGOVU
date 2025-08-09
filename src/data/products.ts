@@ -31,7 +31,11 @@ export const products = [
       "Tumble dry low",
       "Iron on low heat"
     ],
-    whatsapp: "+27680851821"
+    whatsapp: "+27680851821",
+    length_cm: 30,
+    width_cm: 25,
+    height_cm: 8,
+    weight_kg: 0.7
   },
   {
     id: 2,
@@ -62,6 +66,10 @@ export const products = [
       "Tumble dry low",
       "Iron on low heat"
     ],
-    whatsapp: "+27680851821"
+    whatsapp: "+27680851821",
+    length_cm: 35,
+    width_cm: 28,
+    height_cm: 6,
+    weight_kg: 0.6
   }
 ];

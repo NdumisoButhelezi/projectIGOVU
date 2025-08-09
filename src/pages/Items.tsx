@@ -5,30 +5,137 @@ import ProductCard from '../components/ProductCard';
 import ProductDetail from '../components/ProductDetail';
 import FiltersComponent from '../components/Filters';
 import { ShoppingBag, CreditCard, Truck, Package } from 'lucide-react';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import { app } from '../config/firebase';
 
 interface ItemsProps {
-  products: Product[];
   filters: any;
   onFilterChange: (filters: any) => void;
   availableFilters: any;
-  filteredProducts: Product[];
   onAddToCart: (product: Product) => void;
   onOpenAuth: () => void;
 }
 
+import LoadingSpinner from '../components/LoadingSpinner';
+
 export default function Items({
-  products,
-  filters,
+  filters = {}, // Ensure filters is always an object
   onFilterChange,
   availableFilters,
-  filteredProducts,
   onAddToCart,
   onOpenAuth
-}: ItemsProps) {
+}: Omit<ItemsProps, 'products' | 'filteredProducts'> & { filteredProducts?: Product[] }) {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [extractedFilters, setExtractedFilters] = useState({
+    categories: [] as string[],
+    sizes: [] as string[]
+  });
   const navigate = useNavigate();
   const isMobile = window.innerWidth < 1024;
+
+  // Fetch products from Firestore
+  useEffect(() => {
+    async function fetchProducts() {
+      setIsLoading(true);
+      try {
+        const db = getFirestore(app);
+        const snap = await getDocs(collection(db, 'products'));
+        const prods = snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<Product, 'id'>) })) as Product[];
+        setProducts(prods);
+        setFilteredProducts(prods);
+
+        // Extract available filters from products
+        const categories = new Set<string>();
+        const sizes = new Set<string>();
+
+        prods.forEach(product => {
+          if (product.category) {
+            categories.add(product.category);
+          }
+          
+          // Check both 'sizes' and 'size' fields from AdminUpload
+          const productSizes = (product as any).sizes || (product as any).size || [];
+          if (Array.isArray(productSizes)) {
+            productSizes.forEach(size => {
+              if (size && typeof size === 'string') {
+                sizes.add(size);
+              }
+            });
+          }
+        });
+
+        setExtractedFilters({
+          categories: Array.from(categories).sort(),
+          sizes: Array.from(sizes).sort()
+        });
+      } catch (error) {
+        console.error("Error fetching products:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchProducts();
+  }, []);
+
+  // Apply filters when filters change
+  useEffect(() => {
+    let filtered = [...products];
+
+    // Category filter - ensure we have a valid string
+    if (filters?.category && typeof filters.category === 'string' && filters.category.trim() !== '') {
+      filtered = filtered.filter(product => {
+        const productCategory = product.category;
+        return productCategory && typeof productCategory === 'string' &&
+               productCategory.toLowerCase().includes(filters.category!.toLowerCase());
+      });
+    }
+
+    // Price range filter - ensure we have a valid array
+    if (filters?.priceRange && Array.isArray(filters.priceRange) && filters.priceRange.length === 2) {
+      const [minPrice, maxPrice] = filters.priceRange;
+      if (typeof minPrice === 'number' && typeof maxPrice === 'number' && minPrice >= 0 && maxPrice > minPrice) {
+        filtered = filtered.filter(product => 
+          typeof product.price === 'number' && 
+          product.price >= minPrice && 
+          product.price <= maxPrice
+        );
+      }
+    }
+
+    // Size filter - ensure we have a valid string
+    if (filters?.size && typeof filters.size === 'string' && filters.size.trim() !== '') {
+      filtered = filtered.filter(product => {
+        const productSizes = (product as any).sizes || (product as any).size || [];
+        return Array.isArray(productSizes) && productSizes.includes(filters.size);
+      });
+    }
+
+    // Sort - ensure we have a valid sort option
+    const sortBy = filters?.sortBy && typeof filters.sortBy === 'string' ? filters.sortBy : 'name';
+    switch (sortBy) {
+      case 'price-low':
+        filtered.sort((a, b) => (a.price || 0) - (b.price || 0));
+        break;
+      case 'price-high':
+        filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
+        break;
+      case 'newest':
+        filtered.sort((a, b) => {
+          const dateA = new Date(a.createdAt || 0).getTime();
+          const dateB = new Date(b.createdAt || 0).getTime();
+          return dateB - dateA;
+        });
+        break;
+      default:
+        filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }
+
+    setFilteredProducts(filtered);
+  }, [products, filters]);
 
   // Preselect the first product for desktop
   useEffect(() => {
@@ -45,14 +152,31 @@ export default function Items({
     }
   };
 
+  const handleApplyFilters = () => {
+    setFiltersOpen(false);
+  };
+
   return (
     <div className="min-h-screen pt-16">
-      {/* Hero Section */}
-      <div className="relative bg-gradient-to-r from-gray-900 to-black text-white py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Hero Section with Cover Image */}
+      <div className="relative bg-gradient-to-r from-gray-900 to-black text-white py-24 overflow-hidden">
+        <div className="absolute inset-0 bg-black/60"></div>
+        
+        {/* Cover Image */}
+        <div 
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            backgroundImage: "url('/1G5A2160.jpg')"
+          }}
+        ></div>
+        
+        {/* Overlay for better text readability */}
+        <div className="absolute inset-0 bg-black/50"></div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center">
-            <h1 className="text-4xl font-bold mb-4">IGOVU Collection 🛍️</h1>
-            <p className="text-xl text-gray-300">Discover our premium quality clothing line ✨</p>
+            <h1 className="text-4xl font-bold mb-4 drop-shadow-lg">IGOVU Collection 🛍️</h1>
+            <p className="text-xl text-gray-100 drop-shadow-md">Discover our premium quality clothing line ✨</p>
           </div>
         </div>
       </div>
@@ -68,16 +192,19 @@ export default function Items({
               <p className="text-gray-600">Browse and select your favorite pieces 👕</p>
             </div>
             
-            <div className="bg-gray-50 p-6 rounded-xl text-center">
-              <CreditCard className="w-12 h-12 mx-auto mb-4 text-black" />
-              <h3 className="text-lg font-semibold mb-2">2. Confirm Order</h3>
-              <p className="text-gray-600">Pay 60% or 100% upfront 💳</p>
+            <div className="bg-gray-50 p-6 rounded-xl text-center border-2 border-green-200">
+              <CreditCard className="w-12 h-12 mx-auto mb-4 text-green-600" />
+              <h3 className="text-lg font-semibold mb-2 text-green-700">2. Confirm Order</h3>
+              <p className="text-gray-600">Pay 100% upfront to secure your order 💳</p>
+              <div className="mt-2 px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded-full inline-block">
+                Full Payment Required
+              </div>
             </div>
             
             <div className="bg-gray-50 p-6 rounded-xl text-center">
               <Package className="w-12 h-12 mx-auto mb-4 text-black" />
               <h3 className="text-lg font-semibold mb-2">3. Processing</h3>
-              <p className="text-gray-600">Order enters production queue ⚡</p>
+              <p className="text-gray-600">Order enters production queue immediately ⚡</p>
             </div>
             
             <div className="bg-gray-50 p-6 rounded-xl text-center">
@@ -92,81 +219,112 @@ export default function Items({
       {/* Products Section */}
       <div className="bg-gray-50 py-16">
         <div className="max-w-[90rem] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
-            {/* Filters Sidebar (desktop) */}
-            <div className="lg:col-span-2">
-              {/* Mobile: show filters and items side by side or stacked with spacing */}
-              {isMobile ? (
-                <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                  <div className="flex-shrink-0 w-full sm:w-1/2">
-                    <FiltersComponent
-                      filters={filters}
-                      onFilterChange={onFilterChange}
-                      availableFilters={availableFilters}
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <div className="grid grid-cols-1 gap-4">
-                      {filteredProducts.map(product => (
-                        <div key={product.id} onClick={() => handleProductClick(product)}>
-                          <ProductCard
-                            product={product}
-                            onAddToCart={onAddToCart}
-                            onOpenAuth={onOpenAuth}
-                            compact
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="h-full">
-                  <button
-                    className="mb-4 px-4 py-2 bg-black text-white rounded-lg w-full hover:bg-gray-800 transition"
-                    onClick={() => setFiltersOpen(open => !open)}
-                  >
-                    {filtersOpen ? 'Hide Filters' : 'Show Filters'}
-                  </button>
-                  <div className={`transition-all duration-300 ${filtersOpen ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
-                    <FiltersComponent
-                      filters={filters}
-                      onFilterChange={onFilterChange}
-                      availableFilters={availableFilters}
-                    />
-                  </div>
-                </div>
-              )}
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <LoadingSpinner size="large" color="#10B981" />
+              <p className="mt-4 text-xl font-semibold text-green-600">Loading products...</p>
             </div>
-            {/* Items grid */}
-            <div className="lg:col-span-4">
-              <div className="flex flex-col gap-4">
-                {filteredProducts.map(product => (
-                  <div key={product.id} onClick={() => handleProductClick(product)}>
-                    <ProductCard
-                      product={product}
-                      onAddToCart={onAddToCart}
-                      onOpenAuth={onOpenAuth}
-                      compact
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+              {/* Filters Sidebar */}
+              <div className="lg:col-span-3">
+                {isMobile ? (
+                  <div className="mb-6">
+                    <button
+                      className="w-full px-4 py-3 bg-black text-white rounded-xl font-semibold hover:bg-gray-800 transition-all"
+                      onClick={() => setFiltersOpen(!filtersOpen)}
+                    >
+                      {filtersOpen ? 'Hide Filters' : 'Show Filters & Sort'}
+                    </button>
+                    {filtersOpen && (
+                      <div className="mt-4">
+                        <FiltersComponent
+                          filters={filters || {}} // Ensure filters is never undefined
+                          onFilterChange={onFilterChange}
+                          availableFilters={extractedFilters}
+                          onApplyFilters={handleApplyFilters}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="sticky top-20">
+                    <FiltersComponent
+                      filters={filters || {}} // Ensure filters is never undefined
+                      onFilterChange={onFilterChange}
+                      availableFilters={extractedFilters}
                     />
                   </div>
-                ))}
+                )}
               </div>
-            </div>
-            {/* Product Detail */}
-            <div className="lg:col-span-6">
-              {!isMobile && selectedProduct ? (
-                <ProductDetail
-                  product={selectedProduct}
-                  onAddToCart={onAddToCart}
-                />
-              ) : (
-                <div className="text-center text-gray-400 py-24">
-                  <span>Select a product to view details</span>
+
+              {/* Products Grid */}
+              <div className={isMobile ? "col-span-1" : "lg:col-span-4"}>
+                <div className="mb-6 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      Products ({filteredProducts.length})
+                    </h2>
+                    <p className="text-gray-600 mt-1">
+                      Discover our premium IGOVU collection
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {filteredProducts.map(product => (
+                    <div 
+                      key={product.id} 
+                      onClick={() => handleProductClick(product)}
+                      className="cursor-pointer"
+                    >
+                      <ProductCard
+                        product={product}
+                        onAddToCart={onAddToCart}
+                        onOpenAuth={onOpenAuth}
+                        compact
+                      />
+                    </div>
+                  ))}
+                </div>
+                {filteredProducts.length === 0 && (
+                  <div className="text-center py-16 bg-white rounded-2xl shadow-sm">
+                    <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <ShoppingBag className="w-12 h-12 text-gray-400" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">No products found</h3>
+                    <p className="text-gray-600 mb-6">
+                      Try adjusting your search criteria or browse all products.
+                    </p>
+                    <button
+                      onClick={() => onFilterChange({})}
+                      className="bg-black text-white px-6 py-3 rounded-xl font-semibold hover:bg-gray-800 transition-all"
+                    >
+                      Clear All Filters
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Product Detail */}
+              {!isMobile && (
+                <div className="lg:col-span-5">
+                  {selectedProduct ? (
+                    <div className="sticky top-20">
+                      <ProductDetail
+                        product={selectedProduct}
+                        onAddToCart={onAddToCart}
+                      />
+                    </div>
+                  ) : (
+                    <div className="text-center text-gray-400 py-24">
+                      <ShoppingBag className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                      <p className="text-lg">Select a product to view details</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

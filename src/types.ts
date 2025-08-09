@@ -1,24 +1,24 @@
 export interface Product {
-  id: number;
+  id: string; // changed from number to string
   name: string;
   price: number;
-  images: string[];
+  images?: string[];
   category: string;
-  description: string;
-  gender: 'men' | 'women' | 'unisex';
-  size: string[];
-  color: string;
+  description?: string;
+  gender?: string;
+  size?: string[]; // or sizes?: string[]
+  color?: string;
   collection?: string;
   material?: string;
-  care?: string[];
   features?: string[];
-  fit?: string;
-  occasion?: string;
-  season?: string;
-  brand?: string;
-  sku?: string;
-  stock?: number;
+  care?: string[];
   whatsapp?: string;
+  length_cm?: number;
+  width_cm?: number;
+  height_cm?: number;
+  weight_kg?: number;
+  stock?: number;
+  [key: string]: any;
 }
 
 export interface CartItem extends Product {

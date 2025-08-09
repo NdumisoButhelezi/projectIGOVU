@@ -3,6 +3,7 @@ import { ShoppingCart, Settings, Home, Phone, Info, Menu, Image, Users, LogOut, 
 import { Page } from '../types';
 import MobileNav from './MobileNav';
 import { useAuth } from '../contexts/AuthContext';
+import { Link } from 'react-router-dom';
 
 interface NavbarProps {
   cartItemCount: number;
@@ -116,6 +117,7 @@ export default function Navbar({
                 <Phone className="h-4 w-4" />
                 <span>Contact</span>
               </button>
+              <Link to="/order-history" className="px-4 py-2 hover:underline mt-2">Order History</Link>
             </div>
 
             <div className="flex items-center space-x-4">

@@ -42,6 +42,7 @@ export default function MobileNav({ isOpen, onClose, currentPage, onNavigate }: 
               { id: 'gallery', label: 'Gallery' },
               { id: 'about', label: 'About' },
               { id: 'contact', label: 'Contact' },
+              { id: 'order-history', label: 'Order History' }, // Added Order History
             ].map((item) => (
               <button
                 key={item.id}

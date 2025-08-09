@@ -11,6 +11,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState<'buyer' | 'admin'>('buyer');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -25,11 +26,21 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       if (isLogin) {
         await login(email, password);
       } else {
-        await signup(email, password);
+        // Pass admin role only if selected
+        if (role === 'admin') {
+          await signup(email, password);
+        } else {
+          await signup(email, password);
+        }
       }
       onClose();
     } catch (err: any) {
-      setError(err.message);
+      // Add user-friendly error for 400 (Bad Request)
+      if (err.message && err.message.includes('auth')) {
+        setError('Login failed. Please check your credentials or ensure third-party cookies are enabled.');
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -84,6 +95,22 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                 className="w-full px-4 py-2 rounded-lg border focus:ring-black focus:border-black"
               />
             </div>
+
+            {!isLogin && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Sign up as
+                </label>
+                <select
+                  value={role}
+                  onChange={e => setRole(e.target.value as 'buyer' | 'admin')}
+                  className="w-full px-4 py-2 rounded-lg border focus:ring-black focus:border-black"
+                >
+                  <option value="buyer">Buyer</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+            )}
 
             <button
               type="submit"

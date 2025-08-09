@@ -1,14 +1,19 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import { getAnalytics } from 'firebase/analytics';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey: "AIzaSyAN_L-zfDVCH_jvYaqFI8gSPPVChzW3OUg",
+  authDomain: "igovu-e05f4.firebaseapp.com",
+  projectId: "igovu-e05f4",
+  storageBucket: "igovu-e05f4.appspot.com", // fixed typo here
+  messagingSenderId: "480096199930",
+  appId: "1:480096199930:web:67c5ecbaa967b6249dd543",
+  measurementId: "G-CYDRC8D70S"
 };
 
-const app = initializeApp(firebaseConfig);
+export const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+
+// Only initialize analytics in the browser (not SSR)
+export const analytics = typeof window !== "undefined" ? getAnalytics(app) : undefined;

@@ -5,7 +5,8 @@ import { X, Upload, Plus, Minus, Image as ImageIcon, Camera, Trash2 } from 'luci
 interface AdminUploadProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (product: Omit<Product, 'id'>) => void;
+  onSubmit: (product: any) => void;
+  initialProduct?: any;
 }
 
 async function createYocoCheckout(payload: any, token: string) {
@@ -23,27 +24,51 @@ async function createYocoCheckout(payload: any, token: string) {
   return await res.json();
 }
 
-export default function AdminUpload({ isOpen, onClose, onSubmit }: AdminUploadProps) {
-  const [sizes, setSizes] = useState<string[]>(['']);
-  const [images, setImages] = useState<string[]>(['']);
-  const [features, setFeatures] = useState<string[]>(['']);
-  const [care, setCare] = useState<string[]>(['']);
+export default function AdminUpload({ isOpen, onClose, onSubmit, initialProduct }: AdminUploadProps) {
+  const [sizes, setSizes] = useState<string[]>(initialProduct?.sizes || ['']);
+  const [images, setImages] = useState<string[]>(initialProduct?.images || ['']);
+  const [features, setFeatures] = useState<string[]>(initialProduct?.features || ['']);
+  const [care, setCare] = useState<string[]>(initialProduct?.care || ['']);
   const [formData, setFormData] = useState({
-    name: '',
-    price: '',
-    category: '',
-    description: '',
-    gender: 'men' as 'men' | 'women',
-    color: '',
-    collection: '',
-    material: '',
-    fit: '',
-    occasion: '',
-    season: '',
-    brand: '',
-    sku: '',
-    stock: ''
+    name: initialProduct?.name || '',
+    price: initialProduct?.price?.toString() || '',
+    category: initialProduct?.category || '',
+    description: initialProduct?.description || '',
+    gender: initialProduct?.gender || 'men',
+    color: initialProduct?.color || '',
+    collection: initialProduct?.collection || '',
+    material: initialProduct?.material || '',
+    fit: initialProduct?.fit || '',
+    occasion: initialProduct?.occasion || '',
+    season: initialProduct?.season || '',
+    brand: initialProduct?.brand || '',
+    sku: initialProduct?.sku || '',
+    stock: initialProduct?.stock?.toString() || '',
+    length_cm: initialProduct?.length_cm?.toString() || '',
+    width_cm: initialProduct?.width_cm?.toString() || '',
+    height_cm: initialProduct?.height_cm?.toString() || '',
+    weight_kg: initialProduct?.weight_kg?.toString() || '',
+    measurement_unit: initialProduct?.measurement_unit || 'cm',
+    weight_unit: initialProduct?.weight_unit || 'kg'
   });
+
+  // Dropdown options for South African clothing context
+  const categoryOptions = [
+    'Hoodies', 'Pants', 'T-Shirts', 'Jackets', 'Shorts', 'Tracksuits', 'Dresses', 'Accessories', 'Caps', 'Sneakers', 'Other'
+  ];
+  const colorOptions = [
+    'Black', 'White', 'Grey', 'Blue', 'Red', 'Green', 'Yellow', 'Brown', 'Beige', 'Navy', 'Olive', 'Maroon', 'Pink', 'Orange', 'Purple', 'Other'
+  ];
+  const sizeOptions = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', 'One Size'];
+  const collectionOptions = [
+    'Essentials', 'Streetwear', 'Limited', 'Seasonal', 'Heritage', 'SA Pride', 'Other'
+  ];
+  const materialOptions = [
+    'Cotton', 'Cotton Blend', 'Polyester', 'Fleece', 'Denim', 'Linen', 'Wool', 'Acrylic', 'Other'
+  ];
+  const fitOptions = ['Regular', 'Slim', 'Oversized', 'Relaxed', 'Tapered', 'Other'];
+  const occasionOptions = ['Casual', 'Formal', 'Sports', 'Outdoor', 'Traditional', 'Heritage Day', 'Other'];
+  const seasonOptions = ['All', 'Summer', 'Winter', 'Spring', 'Autumn'];
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -86,46 +111,44 @@ export default function AdminUpload({ isOpen, onClose, onSubmit }: AdminUploadPr
     setArray(prev => prev.filter((_, i) => i !== index));
   };
 
+  // On submit, convert dimension/weight fields to numbers if present
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const filteredArrays = {
-      sizes: sizes.filter(size => size.trim() !== ''),
-      images: images.filter(image => image.trim() !== ''),
-      features: features.filter(feature => feature.trim() !== ''),
-      care: care.filter(item => item.trim() !== '')
+    // Only include fields that are filled in
+    const productData: any = {
+      name: formData.name,
+      price: Number(formData.price),
+      category: formData.category,
     };
+    if (initialProduct?.id) productData.id = initialProduct.id;
+    if (formData.gender) productData.gender = formData.gender;
+    if (formData.color) productData.color = formData.color;
+    if (formData.collection) productData.collection = formData.collection;
+    if (formData.material) productData.material = formData.material;
+    if (formData.fit) productData.fit = formData.fit;
+    if (formData.occasion) productData.occasion = formData.occasion;
+    if (formData.season) productData.season = formData.season;
+    if (formData.brand) productData.brand = formData.brand;
+    if (formData.sku) productData.sku = formData.sku;
+    if (formData.stock) productData.stock = Number(formData.stock);
+    if (formData.length_cm) productData.length_cm = Number(formData.length_cm);
+    if (formData.width_cm) productData.width_cm = Number(formData.width_cm);
+    if (formData.height_cm) productData.height_cm = Number(formData.height_cm);
+    if (formData.weight_kg) productData.weight_kg = Number(formData.weight_kg);
+    if (formData.measurement_unit) productData.measurement_unit = formData.measurement_unit;
+    if (formData.weight_unit) productData.weight_unit = formData.weight_unit;
+    if (formData.description) productData.description = formData.description;
+    const filteredSizes = sizes.filter(Boolean);
+    if (filteredSizes.length) productData.sizes = filteredSizes;
+    const filteredImages = images.filter(Boolean);
+    if (filteredImages.length) productData.images = filteredImages;
+    const filteredFeatures = features.filter(Boolean);
+    if (filteredFeatures.length) productData.features = filteredFeatures;
+    const filteredCare = care.filter(Boolean);
+    if (filteredCare.length) productData.care = filteredCare;
 
-    onSubmit({
-      ...formData,
-      price: parseFloat(formData.price),
-      stock: parseInt(formData.stock),
-      size: filteredArrays.sizes,
-      images: filteredArrays.images,
-      features: filteredArrays.features,
-      care: filteredArrays.care
-    });
-    
-    // Reset form
-    setFormData({
-      name: '',
-      price: '',
-      category: '',
-      description: '',
-      gender: 'men',
-      color: '',
-      collection: '',
-      material: '',
-      fit: '',
-      occasion: '',
-      season: '',
-      brand: '',
-      sku: '',
-      stock: ''
-    });
-    setSizes(['']);
-    setImages(['']);
-    setFeatures(['']);
-    setCare(['']);
+    onSubmit(productData);
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -235,14 +258,18 @@ export default function AdminUpload({ isOpen, onClose, onSubmit }: AdminUploadPr
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Category</label>
-                  <input
-                    type="text"
+                  <select
                     name="category"
                     required
                     value={formData.category}
                     onChange={handleInputChange}
                     className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
-                  />
+                  >
+                    <option value="">Select category</option>
+                    {categoryOptions.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -256,6 +283,7 @@ export default function AdminUpload({ isOpen, onClose, onSubmit }: AdminUploadPr
                   >
                     <option value="men">Men</option>
                     <option value="women">Women</option>
+                    <option value="unisex">Unisex</option>
                   </select>
                 </div>
               </div>
@@ -267,69 +295,93 @@ export default function AdminUpload({ isOpen, onClose, onSubmit }: AdminUploadPr
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Color</label>
-                  <input
-                    type="text"
+                  <select
                     name="color"
                     required
                     value={formData.color}
                     onChange={handleInputChange}
                     className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
-                  />
+                  >
+                    <option value="">Select color</option>
+                    {colorOptions.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Collection</label>
-                  <input
-                    type="text"
+                  <select
                     name="collection"
                     value={formData.collection}
                     onChange={handleInputChange}
                     className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
-                  />
+                  >
+                    <option value="">Select collection</option>
+                    {collectionOptions.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Material</label>
-                  <input
-                    type="text"
+                  <select
                     name="material"
                     value={formData.material}
                     onChange={handleInputChange}
                     className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
-                  />
+                  >
+                    <option value="">Select material</option>
+                    {materialOptions.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Fit</label>
-                  <input
-                    type="text"
+                  <select
                     name="fit"
                     value={formData.fit}
                     onChange={handleInputChange}
                     className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
-                  />
+                  >
+                    <option value="">Select fit</option>
+                    {fitOptions.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Occasion</label>
-                  <input
-                    type="text"
+                  <select
                     name="occasion"
                     value={formData.occasion}
                     onChange={handleInputChange}
                     className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
-                  />
+                  >
+                    <option value="">Select occasion</option>
+                    {occasionOptions.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Season</label>
-                  <input
-                    type="text"
+                  <select
                     name="season"
                     value={formData.season}
                     onChange={handleInputChange}
                     className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
-                  />
+                  >
+                    <option value="">Select season</option>
+                    {seasonOptions.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>
@@ -365,6 +417,91 @@ export default function AdminUpload({ isOpen, onClose, onSubmit }: AdminUploadPr
                     className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
                   />
                 </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Length</label>
+                    <input
+                      type="number"
+                      name="length_cm"
+                      min="1"
+                      step="0.1"
+                      value={formData.length_cm}
+                      onChange={handleInputChange}
+                      className="input"
+                      placeholder="e.g. 30"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Width</label>
+                    <input
+                      type="number"
+                      name="width_cm"
+                      min="1"
+                      step="0.1"
+                      value={formData.width_cm}
+                      onChange={handleInputChange}
+                      className="input"
+                      placeholder="e.g. 25"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Height</label>
+                    <input
+                      type="number"
+                      name="height_cm"
+                      min="1"
+                      step="0.1"
+                      value={formData.height_cm}
+                      onChange={handleInputChange}
+                      className="input"
+                      placeholder="e.g. 8"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Weight</label>
+                    <input
+                      type="number"
+                      name="weight_kg"
+                      min="0.01"
+                      step="0.01"
+                      value={formData.weight_kg}
+                      onChange={handleInputChange}
+                      className="input"
+                      placeholder="e.g. 0.7"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Measurement Unit</label>
+                    <select
+                      name="measurement_unit"
+                      value={formData.measurement_unit}
+                      onChange={handleInputChange}
+                      className="input"
+                    >
+                      <option value="cm">cm</option>
+                      <option value="mm">mm</option>
+                      <option value="in">inches</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Weight Unit</label>
+                    <select
+                      name="weight_unit"
+                      value={formData.weight_unit}
+                      onChange={handleInputChange}
+                      className="input"
+                    >
+                      <option value="kg">kg</option>
+                      <option value="g">g</option>
+                      <option value="lb">lb</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -397,13 +534,16 @@ export default function AdminUpload({ isOpen, onClose, onSubmit }: AdminUploadPr
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {sizes.map((size, index) => (
                   <div key={index} className="flex gap-2">
-                    <input
-                      type="text"
+                    <select
                       value={size}
-                      onChange={(e) => handleArrayChange(index, e.target.value, sizes, setSizes)}
-                      placeholder="e.g., S, M, L, XL"
+                      onChange={e => handleArrayChange(index, e.target.value, sizes, setSizes)}
                       className="flex-1 rounded-lg border-gray-300 shadow-sm focus:border-black focus:ring-black sm:text-sm"
-                    />
+                    >
+                      <option value="">Select size</option>
+                      {sizeOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
                     {sizes.length > 1 && (
                       <button
                         type="button"
@@ -505,7 +645,7 @@ export default function AdminUpload({ isOpen, onClose, onSubmit }: AdminUploadPr
                 className="flex items-center px-6 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-all transform hover:scale-105 shadow-lg"
               >
                 <Upload className="h-4 w-4 mr-2" />
-                Upload Product
+                {initialProduct ? 'Update Product' : 'Upload Product'}
               </button>
             </div>
           </form>
