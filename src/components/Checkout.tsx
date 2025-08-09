@@ -5,6 +5,7 @@ import { createCheckout as createCheckoutBase } from '../services/yoco';
 import { useAuth } from '../contexts/AuthContext';
 import OSMAddressInput from './OSMAddressInput';
 import { logTransaction } from '../services/logTransaction';
+import { buildApiUrl, API_ENDPOINTS, debugApiConfig } from '../utils/api-config';
 
 interface CheckoutProps {
   isOpen: boolean;
@@ -47,13 +48,15 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Determine API base URL
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+  useEffect(() => {
+    // Debug API configuration on component mount
+    debugApiConfig();
+  }, []);
 
   // Call createCheckoutBase with the correct proxy URL
   const createCheckout = async (data: any) => {
     try {
-      const apiUrl = `${API_BASE_URL}/yoco-checkout`; // Ensure correct URL
+      const apiUrl = buildApiUrl(API_ENDPOINTS.YOCO_CHECKOUT);
       console.log('Sending payload to /api/yoco-checkout:', JSON.stringify(data, null, 2)); // Debug log
       const response = await createCheckoutBase(data, apiUrl);
       console.log('Yoco Checkout API Response:', response); // Debug log
@@ -78,7 +81,7 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
         setIsFetchingDeliveryFee(true);
         setDeliveryFeeError(null);
         try {
-          const apiUrl = `${API_BASE_URL}/courierguy-quote`;
+          const apiUrl = buildApiUrl(API_ENDPOINTS.COURIERGUY_QUOTE);
 
           const collection_address = {
             type: 'business',
@@ -191,7 +194,7 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
 
       // Deplete stock immediately after logging the transaction
       for (const item of items) {
-        const response = await fetch(`${API_BASE_URL}/sync-stock`, {
+        const response = await fetch(buildApiUrl(API_ENDPOINTS.SYNC_STOCK), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ productId: item.id, quantity: item.quantity }),

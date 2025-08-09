@@ -1,5 +1,4 @@
 import React, { useState, useCallback } from 'react';
-import { Product } from '../types';
 import { X, Upload, Plus, Minus, Image as ImageIcon, Camera, Trash2 } from 'lucide-react';
 
 interface AdminUploadProps {
@@ -7,22 +6,6 @@ interface AdminUploadProps {
   onClose: () => void;
   onSubmit: (product: any) => void;
   initialProduct?: any;
-}
-
-async function createYocoCheckout(payload: any, token: string) {
-  // Use environment variable for API base URL
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
-  const res = await fetch(`${API_BASE_URL}/yoco-checkout`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ ...payload, token }),
-  });
-  if (!res.ok) {
-    throw new Error('Failed to create Yoco checkout');
-  }
-  return await res.json();
 }
 
 export default function AdminUpload({ isOpen, onClose, onSubmit, initialProduct }: AdminUploadProps) {
@@ -98,7 +81,7 @@ export default function AdminUpload({ isOpen, onClose, onSubmit, initialProduct 
   const handleArrayChange = (
     index: number,
     value: string,
-    array: string[],
+    _array: string[],
     setArray: React.Dispatch<React.SetStateAction<string[]>>
   ) => {
     setArray(prev => prev.map((item, i) => i === index ? value : item));
