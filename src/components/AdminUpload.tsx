@@ -10,8 +10,9 @@ interface AdminUploadProps {
 }
 
 async function createYocoCheckout(payload: any, token: string) {
-  // Call your backend proxy instead of Yoco directly
-  const res = await fetch('http://localhost:4000/api/yoco-checkout', {
+  // Use environment variable for API base URL
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+  const res = await fetch(`${API_BASE_URL}/yoco-checkout`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

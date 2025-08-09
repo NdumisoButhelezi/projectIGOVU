@@ -1,5 +1,5 @@
-import admin from 'firebase-admin';
-import dotenv from 'dotenv';
+const admin = require('firebase-admin');
+const dotenv = require('dotenv');
 
 dotenv.config();
 
@@ -23,4 +23,4 @@ if (!admin.apps.length) {
   });
 }
 
-export default admin;
+module.exports = admin;
