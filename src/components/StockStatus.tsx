@@ -27,31 +27,53 @@ const StockStatus: React.FC<StockStatusProps> = ({ items, onStockStatusChange })
         // For each cart item, get the current stock level
         for (const item of items) {
           try {
-            const response = await fetch(`/api/check-stock?productId=${item.id}`, {
-              method: 'GET',
-              headers: { 'Content-Type': 'application/json' },
-            });
+            // Try multiple endpoints with fallbacks
+            const endpoints = [
+              `/api/check-stock?productId=${item.id}`,
+              `https://project-igovu.vercel.app/api/check-stock?productId=${item.id}`
+            ];
+            
+            let stockData = null;
+            
+            // Try each endpoint until one works
+            for (const endpoint of endpoints) {
+              try {
+                console.log(`Checking stock at: ${endpoint}`);
+                const response = await fetch(endpoint, {
+                  method: 'GET',
+                  headers: { 'Content-Type': 'application/json' },
+                });
 
-            if (!response.ok) {
-              console.warn(`Could not check stock for ${item.id}: ${response.status}`);
-              // Fall back to assuming in stock
+                if (response.ok) {
+                  stockData = await response.json();
+                  console.log(`Stock data for ${item.id}:`, stockData);
+                  break;
+                } else {
+                  console.warn(`Could not check stock at ${endpoint}: ${response.status}`);
+                }
+              } catch (endpointError) {
+                console.warn(`Endpoint ${endpoint} failed:`, endpointError);
+                // Continue to next endpoint
+              }
+            }
+            
+            if (stockData) {
+              result[item.id] = { 
+                available: stockData.stock || 0, 
+                requested: item.quantity 
+              };
+              
+              // Update overall stock status
+              if (stockData.stock < item.quantity) {
+                allInStock = false;
+              }
+            } else {
+              // All endpoints failed, assume in stock
+              console.warn(`All stock endpoints failed for ${item.id}, assuming available`);
               result[item.id] = { 
                 available: Infinity, // Unknown but assume available
                 requested: item.quantity 
               };
-              continue;
-            }
-
-            const data = await response.json();
-            
-            result[item.id] = { 
-              available: data.stock || 0, 
-              requested: item.quantity 
-            };
-            
-            // Update overall stock status
-            if (data.stock < item.quantity) {
-              allInStock = false;
             }
           } catch (itemError) {
             console.error(`Error checking stock for ${item.id}:`, itemError);

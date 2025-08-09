@@ -36,14 +36,86 @@ export default function OSMAddressInput({ value, onSelect }: OSMAddressInputProp
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/geocode?text=${encodeURIComponent(text)}&limit=5&lang=en`);
-      if (response.ok) {
-        const data = await response.json();
-        setSuggestions(data.features || []);
+      // Try multiple endpoints with fallbacks
+      const endpoints = [
+        `/api/geocode?text=${encodeURIComponent(text)}&limit=5&lang=en`,
+        `https://project-igovu.vercel.app/api/geocode?text=${encodeURIComponent(text)}&limit=5&lang=en`,
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&format=json&addressdetails=1&limit=5`
+      ];
+      
+      // Try each endpoint until one works
+      let data;
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`Trying geocode endpoint: ${endpoint}`);
+          const response = await fetch(endpoint, { 
+            headers: endpoint.includes('nominatim') ? { 
+              'User-Agent': 'IGOVU-App/1.0' // Required for Nominatim
+            } : {} 
+          });
+          
+          if (response.ok) {
+            if (endpoint.includes('nominatim')) {
+              // Process Nominatim format
+              const nominatimData = await response.json();
+              data = {
+                features: nominatimData.map((item: any) => ({
+                  properties: {
+                    formatted: item.display_name,
+                    address_line1: item.display_name.split(',')[0],
+                    city: item.address?.city || item.address?.town || '',
+                    postcode: item.address?.postcode || '',
+                    country_code: item.address?.country_code || '',
+                    lat: parseFloat(item.lat),
+                    lon: parseFloat(item.lon)
+                  }
+                }))
+              };
+              console.log('Using Nominatim data', data);
+              break;
+            } else {
+              // Regular Geoapify format
+              data = await response.json();
+              console.log('Using geocode API data', data);
+              break;
+            }
+          }
+        } catch (endpointError) {
+          console.warn(`Endpoint ${endpoint} failed:`, endpointError);
+          // Continue to next endpoint
+        }
+      }
+      
+      if (data?.features) {
+        setSuggestions(data.features);
+      } else {
+        // Fallback to manual suggestion
+        setSuggestions([{
+          properties: {
+            formatted: text,
+            address_line1: text,
+            city: 'Durban',
+            postcode: '4000',
+            country_code: 'ZA',
+            lat: -29.8587,
+            lon: 31.0218
+          }
+        }]);
       }
     } catch (error) {
       console.error('Geocoding error:', error);
-      setSuggestions([]);
+      // Fallback to at least one suggestion so the user can continue
+      setSuggestions([{
+        properties: {
+          formatted: text,
+          address_line1: text,
+          city: 'Durban',
+          postcode: '4000',
+          country_code: 'ZA',
+          lat: -29.8587,
+          lon: 31.0218
+        }
+      }]);
     } finally {
       setIsLoading(false);
     }
