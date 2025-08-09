@@ -1,5 +1,5 @@
 // Stock synchronization API endpoint with Firebase integration
-const admin = require('../firebase-admin.js');
+const admin = require('../firebase-admin.cjs');
 
 module.exports = async (req, res) => {
   // Enable CORS

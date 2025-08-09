@@ -56,13 +56,53 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
   // Call createCheckoutBase with the correct proxy URL
   const createCheckout = async (data: any) => {
     try {
+      // Try multiple endpoints to handle development and production environments
       const apiUrl = buildApiUrl(API_ENDPOINTS.YOCO_CHECKOUT);
-      console.log('Sending payload to /api/yoco-checkout:', JSON.stringify(data, null, 2)); // Debug log
-      const response = await createCheckoutBase(data, apiUrl);
-      console.log('Yoco Checkout API Response:', response); // Debug log
-      return response;
+      console.log('Attempting Yoco checkout with URL:', apiUrl);
+      
+      try {
+        console.log('Sending payload to Yoco checkout:', JSON.stringify(data, null, 2)); // Debug log
+        const response = await createCheckoutBase(data, apiUrl);
+        console.log('Yoco Checkout API Response:', response); // Debug log
+        return response;
+      } catch (primaryError: any) {
+        console.error('Primary Yoco API Error:', primaryError.message || primaryError);
+        
+        // If connection is refused, try direct endpoint as fallback
+        if (primaryError.message?.includes('Network Error') || 
+            primaryError.message?.includes('ECONNREFUSED') || 
+            primaryError.message?.includes('ERR_CONNECTION_REFUSED')) {
+          
+          console.log('Connection refused, trying alternative endpoint');
+          
+          // Try specific hardcoded endpoints as fallback
+          const fallbackUrls = [
+            'http://localhost:4000/api/yoco-checkout',
+            `${window.location.origin}/api/yoco-checkout`,
+            'https://project-igovu.vercel.app/api/yoco-checkout'
+          ];
+          
+          // Try each fallback URL
+          for (const url of fallbackUrls) {
+            try {
+              console.log(`Trying fallback URL: ${url}`);
+              const fallbackResponse = await createCheckoutBase(data, url);
+              console.log('Fallback API Response:', fallbackResponse);
+              return fallbackResponse;
+            } catch (fallbackError: any) {
+              console.error(`Fallback ${url} failed:`, fallbackError.message || fallbackError);
+            }
+          }
+          
+          // All fallbacks failed, throw original error
+          throw primaryError;
+        } else {
+          // Not a connection issue, throw the original error
+          throw primaryError;
+        }
+      }
     } catch (error: any) {
-      console.error('Yoco Checkout API Error:', error.response || error.message); // Debug log
+      console.error('All Yoco Checkout API attempts failed:', error.response || error.message);
       throw error;
     }
   };

@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import axios from 'axios';
 import dotenv from 'dotenv';
-import admin from '../firebase-admin.js'; // Use import instead of require
+import admin from '../firebase-admin.js';
 const db = admin.firestore();
 
 dotenv.config();
@@ -337,51 +337,57 @@ const processOldTransactions = async () => {
   }
 };
 
-// Call the function to process old transactions when the server starts
-processOldTransactions();
+// Try to process old transactions and listen for updates, but don't crash if Firebase credentials aren't available
+try {
+  // Call the function to process old transactions when the server starts
+  processOldTransactions();
 
-// Real-time listener for transactions to update stock
-const syncStockOnTransactionUpdate = () => {
-  console.log('Listening for transaction updates...');
-  db.collection('transactions').onSnapshot(async (snapshot) => {
-    snapshot.docChanges().forEach(async (change) => {
-      if (change.type === 'added') {
-        const transaction = change.doc.data();
-        const items = transaction.items || [];
+  // Real-time listener for transactions to update stock
+  const syncStockOnTransactionUpdate = () => {
+    console.log('Listening for transaction updates...');
+    db.collection('transactions').onSnapshot(async (snapshot) => {
+      snapshot.docChanges().forEach(async (change) => {
+        if (change.type === 'added') {
+          const transaction = change.doc.data();
+          const items = transaction.items || [];
 
-        console.log(`New transaction detected: ${change.doc.id}`);
-        console.log('Processing items:', items);
+          console.log(`New transaction detected: ${change.doc.id}`);
+          console.log('Processing items:', items);
 
-        // Iterate through each item in the transaction
-        for (const item of items) {
-          const { id: productId, quantity } = item;
+          // Iterate through each item in the transaction
+          for (const item of items) {
+            const { id: productId, quantity } = item;
 
-          try {
-            // Fetch the product from the "products" collection
-            const productRef = db.collection('products').doc(productId);
-            const productSnap = await productRef.get();
+            try {
+              // Fetch the product from the "products" collection
+              const productRef = db.collection('products').doc(productId);
+              const productSnap = await productRef.get();
 
-            if (productSnap.exists) {
-              const currentStock = productSnap.data().stock || 0;
-              const newStock = Math.max(0, currentStock - quantity);
+              if (productSnap.exists) {
+                const currentStock = productSnap.data().stock || 0;
+                const newStock = Math.max(0, currentStock - quantity);
 
-              // Update the product stock
-              await productRef.update({ stock: newStock });
-              console.log(`Stock updated for product ID ${productId}: -${quantity}`);
-            } else {
-              console.warn(`Product ID ${productId} does not exist in Firestore.`);
+                // Update the product stock
+                await productRef.update({ stock: newStock });
+                console.log(`Stock updated for product ID ${productId}: -${quantity}`);
+              } else {
+                console.warn(`Product ID ${productId} does not exist in Firestore.`);
+              }
+            } catch (error) {
+              console.error(`Failed to update stock for product ID ${productId}:`, error);
             }
-          } catch (error) {
-            console.error(`Failed to update stock for product ID ${productId}:`, error);
           }
         }
-      }
+      });
     });
-  });
-};
-       
-// Call the function to start listening for transaction updates
-syncStockOnTransactionUpdate();
+  };
+         
+  // Call the function to start listening for transaction updates
+  syncStockOnTransactionUpdate();
+} catch (error) {
+  console.error('Firebase functionality disabled due to credential error:', error.message);
+  console.log('The server will continue to run for payment processing only.');
+}
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

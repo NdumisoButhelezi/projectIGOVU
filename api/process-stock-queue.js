@@ -1,5 +1,5 @@
 // Stock synchronization queue processor
-const admin = require('../firebase-admin.js');
+const admin = require('../firebase-admin.cjs');
 
 module.exports = async (req, res) => {
   // Enable CORS
