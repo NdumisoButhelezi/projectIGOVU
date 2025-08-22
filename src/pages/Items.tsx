@@ -1,17 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Product } from '../types';
 import ProductCard from '../components/ProductCard';
 import ProductDetail from '../components/ProductDetail';
 import FiltersComponent from '../components/Filters';
-import { ShoppingBag, CreditCard, Truck, Package } from 'lucide-react';
+import { ShoppingBag, CreditCard, Truck, Package, Filter } from 'lucide-react';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { app } from '../config/firebase';
 
+import { Filters } from '../types';
+
 interface ItemsProps {
-  filters: any;
-  onFilterChange: (filters: any) => void;
-  availableFilters: any;
+  filters: Filters;
+  onFilterChange: (filters: Filters) => void;
+  availableFilters: {
+    categories?: string[];
+    sizes?: string[];
+    colors?: string[];
+    collections?: string[];
+    maxPrice?: number;
+  };
   onAddToCart: (product: Product) => void;
   onOpenAuth: () => void;
 }
@@ -21,7 +29,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 export default function Items({
   filters = {}, // Ensure filters is always an object
   onFilterChange,
-  availableFilters,
+  availableFilters, // Accept availableFilters prop
   onAddToCart,
   onOpenAuth
 }: Omit<ItemsProps, 'products' | 'filteredProducts'> & { filteredProducts?: Product[] }) {
@@ -32,7 +40,10 @@ export default function Items({
   const [isLoading, setIsLoading] = useState(true);
   const [extractedFilters, setExtractedFilters] = useState({
     categories: [] as string[],
-    sizes: [] as string[]
+    sizes: [] as string[],
+    colors: [] as string[],
+    collections: [] as string[],
+    maxPrice: 1000
   });
   const navigate = useNavigate();
   const isMobile = window.innerWidth < 1024;
@@ -51,6 +62,9 @@ export default function Items({
         // Extract available filters from products
         const categories = new Set<string>();
         const sizes = new Set<string>();
+        const colors = new Set<string>();
+        const collections = new Set<string>();
+        let maxPrice = 1000;
 
         prods.forEach(product => {
           if (product.category) {
@@ -66,11 +80,29 @@ export default function Items({
               }
             });
           }
+          
+          // Add color to filters
+          if (product.color) {
+            colors.add(product.color);
+          }
+          
+          // Add collection to filters
+          if (product.collection) {
+            collections.add(product.collection);
+          }
+          
+          // Track maximum price
+          if (typeof product.price === 'number' && product.price > maxPrice) {
+            maxPrice = product.price;
+          }
         });
 
         setExtractedFilters({
           categories: Array.from(categories).sort(),
-          sizes: Array.from(sizes).sort()
+          sizes: Array.from(sizes).sort(),
+          colors: Array.from(colors).sort(),
+          collections: Array.from(collections).sort(),
+          maxPrice: maxPrice
         });
       } catch (error) {
         console.error("Error fetching products:", error);
@@ -83,23 +115,42 @@ export default function Items({
 
   // Apply filters when filters change
   useEffect(() => {
+    if (!products || products.length === 0) {
+      setFilteredProducts([]);
+      return;
+    }
+    
     let filtered = [...products];
 
-    // Category filter - ensure we have a valid string
-    if (filters?.category && typeof filters.category === 'string' && filters.category.trim() !== '') {
-      filtered = filtered.filter(product => {
-        const productCategory = product.category;
-        return productCategory && typeof productCategory === 'string' &&
-               productCategory.toLowerCase().includes(filters.category!.toLowerCase());
-      });
+    // Category filter - handle both string and string[] cases
+    if (filters?.category) {
+      if (typeof filters.category === 'string' && filters.category.trim() !== '') {
+        // If category is a string
+        const categoryStr = filters.category;
+        filtered = filtered.filter(product => {
+          if (!product || !product.category) return false;
+          const productCategory = product.category;
+          return typeof productCategory === 'string' &&
+                 productCategory.toLowerCase().includes(categoryStr.toLowerCase());
+        });
+      } else if (Array.isArray(filters.category) && filters.category.length > 0) {
+        // If category is an array of strings
+        const categoryArray = filters.category;
+        filtered = filtered.filter(product => {
+          if (!product || !product.category) return false;
+          return categoryArray.some((cat: string) => 
+            product.category.toLowerCase().includes(cat.toLowerCase())
+          );
+        });
+      }
     }
 
     // Price range filter - ensure we have a valid array
     if (filters?.priceRange && Array.isArray(filters.priceRange) && filters.priceRange.length === 2) {
       const [minPrice, maxPrice] = filters.priceRange;
-      if (typeof minPrice === 'number' && typeof maxPrice === 'number' && minPrice >= 0 && maxPrice > minPrice) {
+      if (typeof minPrice === 'number' && typeof maxPrice === 'number' && minPrice >= 0 && maxPrice > 0) {
         filtered = filtered.filter(product => 
-          typeof product.price === 'number' && 
+          product && typeof product.price === 'number' && 
           product.price >= minPrice && 
           product.price <= maxPrice
         );
@@ -109,8 +160,19 @@ export default function Items({
     // Size filter - ensure we have a valid string
     if (filters?.size && typeof filters.size === 'string' && filters.size.trim() !== '') {
       filtered = filtered.filter(product => {
-        const productSizes = (product as any).sizes || (product as any).size || [];
-        return Array.isArray(productSizes) && productSizes.includes(filters.size);
+        if (!product) return false;
+        
+        // Try to get sizes from different possible properties
+        const productSizes = product.sizes || product.size || [];
+        
+        // Handle both array and string cases
+        if (Array.isArray(productSizes)) {
+          return productSizes.includes(filters.size || '');
+        } else if (typeof productSizes === 'string') {
+          return productSizes === filters.size;
+        }
+        
+        return false;
       });
     }
 
@@ -118,20 +180,20 @@ export default function Items({
     const sortBy = filters?.sortBy && typeof filters.sortBy === 'string' ? filters.sortBy : 'name';
     switch (sortBy) {
       case 'price-low':
-        filtered.sort((a, b) => (a.price || 0) - (b.price || 0));
+        filtered.sort((a, b) => ((a && a.price) || 0) - ((b && b.price) || 0));
         break;
       case 'price-high':
-        filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
+        filtered.sort((a, b) => ((b && b.price) || 0) - ((a && a.price) || 0));
         break;
       case 'newest':
         filtered.sort((a, b) => {
-          const dateA = new Date(a.createdAt || 0).getTime();
-          const dateB = new Date(b.createdAt || 0).getTime();
+          const dateA = new Date((a && a.createdAt) || 0).getTime();
+          const dateB = new Date((b && b.createdAt) || 0).getTime();
           return dateB - dateA;
         });
         break;
       default:
-        filtered.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        filtered.sort((a, b) => ((a && a.name) || '').localeCompare((b && b.name) || ''));
     }
 
     setFilteredProducts(filtered);
@@ -231,17 +293,20 @@ export default function Items({
                 {isMobile ? (
                   <div className="mb-6">
                     <button
-                      className="w-full px-4 py-3 bg-black text-white rounded-xl font-semibold hover:bg-gray-800 transition-all"
+                      className="w-full px-4 py-3 bg-black text-white rounded-xl font-semibold hover:bg-gray-800 transition-all shadow-md"
                       onClick={() => setFiltersOpen(!filtersOpen)}
                     >
-                      {filtersOpen ? 'Hide Filters' : 'Show Filters & Sort'}
+                      <div className="flex items-center justify-center gap-2">
+                        <Filter className="w-5 h-5" />
+                        {filtersOpen ? 'Hide Filters' : 'Show Filters & Sort'}
+                      </div>
                     </button>
                     {filtersOpen && (
                       <div className="mt-4">
                         <FiltersComponent
                           filters={filters || {}} // Ensure filters is never undefined
                           onFilterChange={onFilterChange}
-                          availableFilters={extractedFilters}
+                          availableFilters={availableFilters || extractedFilters}
                           onApplyFilters={handleApplyFilters}
                         />
                       </div>
@@ -252,7 +317,7 @@ export default function Items({
                     <FiltersComponent
                       filters={filters || {}} // Ensure filters is never undefined
                       onFilterChange={onFilterChange}
-                      availableFilters={extractedFilters}
+                      availableFilters={availableFilters || extractedFilters}
                     />
                   </div>
                 )}

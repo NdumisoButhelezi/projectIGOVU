@@ -471,24 +471,82 @@ export default function AdminProducts() {
         </div>
       )}
       
-      <div className="mb-4 flex space-x-2">
-        <button 
-          onClick={recalculateAllStock}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-          disabled={loading}
-        >
-          Recalculate All Stock
-        </button>
-        
-        {(invalidProductIds.size > 0 || transactionsWithoutItems > 0) && (
+      <div className="mb-4">
+        <div className="flex space-x-2 mb-4">
           <button 
-            onClick={() => setShowBulkDeleteConfirm(true)}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+            onClick={recalculateAllStock}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
             disabled={loading}
           >
-            Clean Up Invalid Transactions ({invalidProductIds.size + transactionsWithoutItems})
+            Recalculate All Stock
           </button>
-        )}
+          
+          {(invalidProductIds.size > 0 || transactionsWithoutItems > 0) && (
+            <button 
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+              disabled={loading}
+            >
+              Clean Up Invalid Transactions ({invalidProductIds.size + transactionsWithoutItems})
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2 p-4 bg-gray-50 border border-gray-200 rounded-md">
+          <h3 className="w-full text-md font-bold mb-2">Stock Synchronization Utilities</h3>
+          <button
+            onClick={async () => {
+              try {
+                setLoading(true);
+                const response = await fetch('/api/process-stock-queue', { method: 'GET' });
+                if (!response.ok) {
+                  throw new Error(`Failed to process stock queue: ${response.status}`);
+                }
+                const data = await response.json();
+                setUpdateStatus(`Stock queue processed: ${data.successful} succeeded, ${data.failed} failed`);
+                setTimeout(() => setUpdateStatus(null), 5000);
+              } catch (error) {
+                console.error('Error processing stock queue:', error);
+                setUpdateStatus(`Error processing stock queue: ${error instanceof Error ? error.message : String(error)}`);
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-sm"
+            disabled={loading}
+          >
+            Process Stock Queue
+          </button>
+
+          <button
+            onClick={async () => {
+              if (!window.confirm('Are you sure you want to run stock recovery? This will analyze all transactions and may update product stock levels.')) {
+                return;
+              }
+              
+              try {
+                setLoading(true);
+                
+                // Import and run the stock recovery utility
+                const syncStockLevels = (await import('../utils/stock-recovery')).default;
+                await syncStockLevels();
+                
+                // Refresh the page data
+                window.location.reload();
+              } catch (error) {
+                console.error('Stock recovery failed:', error);
+                setUpdateStatus(`Stock recovery failed: ${error instanceof Error ? error.message : String(error)}`);
+                setTimeout(() => setUpdateStatus(null), 5000);
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="px-3 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors text-sm"
+            disabled={loading}
+          >
+            Advanced Stock Recovery
+          </button>
+        </div>
       </div>
       
       {loading ? (

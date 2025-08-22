@@ -1,4 +1,4 @@
-import { getFirestore, collection, addDoc, Timestamp } from "firebase/firestore";
+import { getFirestore, collection, addDoc, Timestamp, DocumentReference } from "firebase/firestore";
 import { app } from "../config/firebase";
 
 // Call this function after a successful payment
@@ -22,9 +22,9 @@ export async function logTransaction({
   status?: string;
   items?: any[];
   [key: string]: any;
-}) {
+}): Promise<DocumentReference> {
   const db = getFirestore(app);
-  await addDoc(collection(db, "transactions"), {
+  const docRef = await addDoc(collection(db, "transactions"), {
     customerName,
     customerEmail,
     amount,
@@ -37,4 +37,6 @@ export async function logTransaction({
     timestamp: Timestamp.now(),
     ...rest
   });
+  
+  return docRef;
 }

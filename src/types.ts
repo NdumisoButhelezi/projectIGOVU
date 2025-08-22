@@ -36,11 +36,13 @@ export interface CheckoutFormData {
 }
 
 export interface Filters {
-  gender: string[];
-  category: string[];
-  color: string[];
-  priceRange: [number, number];
-  collection: string[];
+  gender?: string[];
+  category?: string | string[];
+  color?: string[];
+  priceRange?: [number, number];
+  collection?: string[];
+  size?: string;
+  sortBy?: string;
 }
 
 export type Page = 'home' | 'about' | 'contact' | 'gallery' | 'men' | 'women' | 'items';

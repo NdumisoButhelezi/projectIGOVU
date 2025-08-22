@@ -1,8 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { Product, CartItem, Filters, Page } from './types';
 import Navbar from './components/Navbar';
-import ProductCard from './components/ProductCard';
 import Cart from './components/Cart';
 import Checkout from './components/Checkout';
 import AdminUpload from './components/AdminUpload';
@@ -25,7 +24,6 @@ import { app } from './config/firebase';
 import { useAuth } from './contexts/AuthContext';
 import AdminDashboard from './components/AdminDashboard';
 import AdminProducts from './pages/AdminProducts';
-import LoadingSpinner from './components/LoadingSpinner';
 
 function App() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -34,15 +32,17 @@ function App() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [activeTab] = useState<'all' | 'men' | 'women'>('all');
+  // const [activeTab] = useState<'all' | 'men' | 'women'>('all'); // Unused, but kept for reference
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState<Filters>({
     gender: [],
-    category: [],
+    category: '',
     color: [],
     priceRange: [0, 400],
-    collection: []
+    collection: [],
+    size: '',
+    sortBy: 'name'
   });
 
   const location = useLocation();
@@ -65,6 +65,7 @@ function App() {
       });
       setProducts(productsData);
       setIsLoading(false);
+      console.log(`Loaded ${productsData.length} products, loading state: ${isLoading ? 'loading' : 'complete'}`);
     }, (error) => {
       console.error("Error fetching products:", error);
       setIsLoading(false);
@@ -73,27 +74,26 @@ function App() {
   }, []);
 
   const availableFilters = useMemo(() => {
+    if (!products || products.length === 0) {
+      return {
+        categories: [],
+        colors: [],
+        collections: [],
+        maxPrice: 1000
+      };
+    }
+    
     return {
-      categories: [...new Set(products.map(p => p.category))],
-      colors: [...new Set(products.map(p => p.color))],
-      collections: [...new Set(products.map(p => p.collection).filter(Boolean))],
-      maxPrice: Math.max(...products.map(p => p.price))
+      categories: [...new Set(products.filter(p => p && p.category).map(p => p.category))],
+      colors: [...new Set(products.filter(p => p && p.color).map(p => p.color || ''))],
+      collections: [...new Set(products.filter(p => p && p.collection).map(p => p.collection || '').filter(Boolean))],
+      maxPrice: Math.max(...products.filter(p => p && typeof p.price === 'number').map(p => p.price), 1000)
     };
   }, [products]);
 
-  const filteredProducts = useMemo(() => {
-    return products.filter(product => {
-      if (activeTab !== 'all' && product.gender !== activeTab) return false;
-      if (filters.gender.length && !filters.gender.includes(product.gender || '')) return false;
-      if (filters.category.length && !filters.category.includes(product.category)) return false;
-      if (filters.color.length && !filters.color.includes(product.color || '')) return false;
-      if (filters.collection.length && !filters.collection.includes(product.collection || '')) return false;
-      if (filters.priceRange[0] !== undefined && filters.priceRange[1] !== undefined) {
-        if (product.price < filters.priceRange[0] || product.price > filters.priceRange[1]) return false;
-      }
-      return true;
-    });
-  }, [activeTab, filters, products]);
+  // We're not using filteredProducts directly in App.tsx
+  // Each component that needs filtered products does its own filtering
+  // See Items.tsx for an example of how filters are applied
 
   const addToCart = async (product: Product) => {
     // Fetch latest stock from Firestore
