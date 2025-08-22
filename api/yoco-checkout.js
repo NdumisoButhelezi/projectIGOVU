@@ -22,17 +22,21 @@ module.exports = async (req, res) => {
 
   try {
     console.log('Received payload at /api/yoco-checkout:', JSON.stringify(req.body, null, 2));
-    
-    const { cartItems, ...payload } = req.body;
-    
-    // Get Yoco secret key from environment
+    const payload = req.body;
     const YOCO_SECRET_KEY = process.env.YOCO_SECRET_KEY;
-    
     if (!YOCO_SECRET_KEY) {
       return res.status(500).json({ error: 'Yoco secret key not configured' });
     }
 
-    // Create Yoco checkout session
+    // Defensive: check for token (must exist and not be empty)
+    if (!payload.token || typeof payload.token !== 'string' || payload.token.trim() === '') {
+      console.error('Missing or invalid Yoco token in payload:', JSON.stringify(payload));
+      return res.status(400).json({ error: 'Missing or invalid Yoco token in payload' });
+    }
+
+    // Defensive: use items from metadata
+    const items = payload.metadata?.items || [];
+
     const yocoResponse = await fetch('https://online.yoco.com/v1/charges/', {
       method: 'POST',
       headers: {
@@ -44,16 +48,17 @@ module.exports = async (req, res) => {
         currency: 'ZAR',
         token: payload.token,
         metadata: {
-          cartItems: JSON.stringify(cartItems),
-          customerEmail: payload.customerEmail,
-          deliveryMethod: payload.deliveryMethod,
-          deliveryAddress: payload.deliveryAddress,
+          items: JSON.stringify(items),
+          customerEmail: payload.metadata?.customerEmail,
+          deliveryMethod: payload.metadata?.deliveryMethod,
+          deliveryAddress: payload.metadata?.deliveryAddress,
+          deliveryFee: payload.metadata?.deliveryFee,
         }
       })
     });
 
     const yocoData = await yocoResponse.json();
-    
+
     if (!yocoResponse.ok) {
       console.error('Yoco API Error:', yocoData);
       return res.status(yocoResponse.status).json({
