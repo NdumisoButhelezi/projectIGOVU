@@ -24,14 +24,52 @@ module.exports = async (req, res) => {
     console.log('Received payload at /api/yoco-checkout:', JSON.stringify(req.body, null, 2));
     const payload = req.body;
     const YOCO_SECRET_KEY = process.env.YOCO_SECRET_KEY;
+    
     if (!YOCO_SECRET_KEY) {
       return res.status(500).json({ error: 'Yoco secret key not configured' });
     }
 
+    // If no token provided, create a checkout session instead
+    if (!payload.token) {
+      console.log('No token provided, creating checkout session...');
+      
+      const checkoutResponse = await fetch('https://online.yoco.com/v1/checkouts/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${YOCO_SECRET_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: payload.amount,
+          currency: payload.currency || 'ZAR',
+          successUrl: payload.successUrl,
+          cancelUrl: payload.cancelUrl,
+          failureUrl: payload.failureUrl,
+          metadata: {
+            ...payload.metadata,
+            items: JSON.stringify(payload.metadata?.items || [])
+          }
+        })
+      });
+
+      const checkoutData = await checkoutResponse.json();
+
+      if (!checkoutResponse.ok) {
+        console.error('Yoco Checkout API Error:', checkoutData);
+        return res.status(checkoutResponse.status).json({ error: checkoutData });
+      }
+
+      console.log('Yoco Checkout Response:', checkoutData);
+      return res.status(200).json(checkoutData);
+    }
+
+    // Original token-based payment code for direct charges
+    console.log('Token provided, processing direct charge...');
+    
     // Defensive: check for token (must exist and not be empty)
-    if (!payload.token || typeof payload.token !== 'string' || payload.token.trim() === '') {
-      console.error('Missing or invalid Yoco token in payload:', JSON.stringify(payload));
-      return res.status(400).json({ error: 'Missing or invalid Yoco token in payload' });
+    if (typeof payload.token !== 'string' || payload.token.trim() === '') {
+      console.error('Invalid Yoco token in payload:', JSON.stringify(payload));
+      return res.status(400).json({ error: 'Invalid Yoco token in payload' });
     }
 
     // Defensive: use items from metadata
