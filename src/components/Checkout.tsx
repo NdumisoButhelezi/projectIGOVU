@@ -56,54 +56,35 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
   // Call createCheckoutBase with the correct proxy URL
   const createCheckout = async (data: any) => {
     try {
-      // Try multiple endpoints to handle development and production environments
       const apiUrl = buildApiUrl(API_ENDPOINTS.YOCO_CHECKOUT);
-      console.log('Attempting Yoco checkout with URL:', apiUrl);
+      console.log('Creating Yoco checkout with URL:', apiUrl);
+      console.log('Checkout payload:', JSON.stringify(data, null, 2));
       
-      try {
-        console.log('Sending payload to Yoco checkout:', JSON.stringify(data, null, 2)); // Debug log
-        const response = await createCheckoutBase(data, apiUrl);
-        console.log('Yoco Checkout API Response:', response); // Debug log
-        return response;
-      } catch (primaryError: any) {
-        console.error('Primary Yoco API Error:', primaryError.message || primaryError);
-        
-        // If connection is refused, try direct endpoint as fallback
-        if (primaryError.message?.includes('Network Error') || 
-            primaryError.message?.includes('ECONNREFUSED') || 
-            primaryError.message?.includes('ERR_CONNECTION_REFUSED')) {
-          
-          console.log('Connection refused, trying alternative endpoint');
-          
-          // Try specific hardcoded endpoints as fallback
-          const fallbackUrls = [
-            'http://localhost:4000/api/yoco-checkout',
-            `${window.location.origin}/api/yoco-checkout`,
-            'https://project-igovu.vercel.app/api/yoco-checkout'
-          ];
-          
-          // Try each fallback URL
-          for (const url of fallbackUrls) {
-            try {
-              console.log(`Trying fallback URL: ${url}`);
-              const fallbackResponse = await createCheckoutBase(data, url);
-              console.log('Fallback API Response:', fallbackResponse);
-              return fallbackResponse;
-            } catch (fallbackError: any) {
-              console.error(`Fallback ${url} failed:`, fallbackError.message || fallbackError);
-            }
-          }
-          
-          // All fallbacks failed, throw original error
-          throw primaryError;
-        } else {
-          // Not a connection issue, throw the original error
-          throw primaryError;
-        }
-      }
+      const response = await createCheckoutBase(data, apiUrl);
+      console.log('Yoco Checkout API Response:', response);
+      return response;
     } catch (error: any) {
-      console.error('All Yoco Checkout API attempts failed:', error.response || error.message);
-      throw error;
+      console.error('Yoco Checkout API Error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
+      
+      // Extract meaningful error message
+      let errorMessage = 'Checkout failed';
+      if (error.response?.data?.details) {
+        errorMessage = `Yoco API Error: ${JSON.stringify(error.response.data.details)}`;
+      } else if (error.response?.data?.error) {
+        errorMessage = `${error.response.data.error}`;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      throw new Error(errorMessage);
     }
   };
 
@@ -308,14 +289,37 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
       };
 
       const checkout = await createCheckout(checkoutData);
+      console.log('Checkout response:', checkout);
+      
       if (checkout.redirectUrl) {
+        console.log('Redirecting to Yoco checkout:', checkout.redirectUrl);
         window.location.href = checkout.redirectUrl;
+      } else if (checkout.url) {
+        console.log('Redirecting to Yoco checkout (url field):', checkout.url);
+        window.location.href = checkout.url;
       } else {
+        console.error('No redirect URL received from Yoco:', checkout);
         throw new Error('No redirect URL received from Yoco');
       }
     } catch (error: any) {
       console.error('Payment error:', error);
-      setError(error.response?.data?.message || error.message || 'Failed to create checkout. Please try again.');
+      console.error('Full error object:', {
+        message: error.message,
+        stack: error.stack,
+        response: error.response
+      });
+      
+      // Extract meaningful error message for user
+      let userErrorMessage = 'Failed to create checkout. Please try again.';
+      if (error.message.includes('Yoco API Error')) {
+        userErrorMessage = error.message;
+      } else if (error.response?.data?.details) {
+        userErrorMessage = `Payment failed: ${JSON.stringify(error.response.data.details)}`;
+      } else if (error.message) {
+        userErrorMessage = error.message;
+      }
+      
+      setError(userErrorMessage);
       setStep('delivery');
     }
   };
@@ -477,35 +481,6 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
                 >
                   Proceed to Payment 💳
                 </button>
-              </div>
-
-              <div className="mb-4 p-4 bg-gray-100 border border-gray-300 rounded-md">
-                <h3 className="font-semibold mb-2">Checkout Payload (Debug)</h3>
-                <pre style={{ fontSize: '0.85em', background: '#f9f9f9', padding: '8px', borderRadius: '4px', overflowX: 'auto' }}>
-                  {JSON.stringify(
-                    {
-                      amount: Math.round(finalTotal * 100),
-                      currency: 'ZAR',
-                      successUrl: `${window.location.origin}/payment-success`,
-                      cancelUrl: `${window.location.origin}/payment-cancelled`,
-                      failureUrl: `${window.location.origin}/payment-failed`,
-                      metadata: {
-                        customerName: String(formData.name),
-                        customerEmail: String(currentUser?.email || ''),
-                        deliveryMethod: String(formData.deliveryMethod),
-                        deliveryAddress: String(
-                          formData.deliveryMethod === 'delivery'
-                            ? `${formData.address}, ${formData.city}, ${formData.country}`
-                            : 'Pickup'
-                        ),
-                        deliveryFee: String(deliveryFee ?? 0),
-                        items: items.map(item => ({ id: item.id, quantity: item.quantity })),
-                      }
-                    },
-                    null,
-                    2
-                  )}
-                </pre>
               </div>
             </form>
           )}

@@ -33,33 +33,64 @@ module.exports = async (req, res) => {
     if (!payload.token) {
       console.log('No token provided, creating checkout session...');
       
+      // Validate required fields for checkout session
+      if (!payload.amount || !payload.successUrl || !payload.cancelUrl || !payload.failureUrl) {
+        console.error('Missing required fields for checkout session:', {
+          amount: payload.amount,
+          successUrl: payload.successUrl,
+          cancelUrl: payload.cancelUrl,
+          failureUrl: payload.failureUrl
+        });
+        return res.status(400).json({ 
+          error: 'Missing required fields: amount, successUrl, cancelUrl, failureUrl' 
+        });
+      }
+
+      const checkoutPayload = {
+        amount: payload.amount,
+        currency: payload.currency || 'ZAR',
+        successUrl: payload.successUrl,
+        cancelUrl: payload.cancelUrl,
+        failureUrl: payload.failureUrl,
+        metadata: {
+          ...payload.metadata,
+          items: JSON.stringify(payload.metadata?.items || [])
+        }
+      };
+
+      console.log('Sending to Yoco Checkout API:', JSON.stringify(checkoutPayload, null, 2));
+      
       const checkoutResponse = await fetch('https://online.yoco.com/v1/checkouts/', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${YOCO_SECRET_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          amount: payload.amount,
-          currency: payload.currency || 'ZAR',
-          successUrl: payload.successUrl,
-          cancelUrl: payload.cancelUrl,
-          failureUrl: payload.failureUrl,
-          metadata: {
-            ...payload.metadata,
-            items: JSON.stringify(payload.metadata?.items || [])
-          }
-        })
+        body: JSON.stringify(checkoutPayload)
       });
 
       const checkoutData = await checkoutResponse.json();
+      console.log('Yoco API Raw Response:', {
+        status: checkoutResponse.status,
+        statusText: checkoutResponse.statusText,
+        headers: Object.fromEntries(checkoutResponse.headers.entries()),
+        data: checkoutData
+      });
 
       if (!checkoutResponse.ok) {
-        console.error('Yoco Checkout API Error:', checkoutData);
-        return res.status(checkoutResponse.status).json({ error: checkoutData });
+        console.error('Yoco Checkout API Error:', {
+          status: checkoutResponse.status,
+          statusText: checkoutResponse.statusText,
+          data: checkoutData
+        });
+        return res.status(checkoutResponse.status).json({ 
+          error: 'Yoco API Error',
+          details: checkoutData,
+          status: checkoutResponse.status
+        });
       }
 
-      console.log('Yoco Checkout Response:', checkoutData);
+      console.log('Yoco Checkout Response SUCCESS:', checkoutData);
       return res.status(200).json(checkoutData);
     }
 
@@ -108,10 +139,18 @@ module.exports = async (req, res) => {
     res.status(200).json(yocoData);
     
   } catch (err) {
-    console.error('Checkout API Error:', err.message);
+    console.error('Checkout API Error:', {
+      message: err.message,
+      stack: err.stack,
+      name: err.name
+    });
+    
+    // Return more detailed error information
     res.status(500).json({
       error: 'Internal server error',
-      message: err.message
+      message: err.message,
+      type: err.name,
+      timestamp: new Date().toISOString()
     });
   }
 };
