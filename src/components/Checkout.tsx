@@ -172,7 +172,8 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
           let availableRates = [];
           if (data.rates && Array.isArray(data.rates) && data.rates.length > 0) {
             availableRates = data.rates;
-            fee = data.rates[0].rate;
+            // Handle both rate and price properties for backward compatibility
+            fee = data.rates[0].rate || data.rates[0].price || 0;
           }
           setDeliveryFee(fee);
           setAvailableRates(availableRates);
@@ -452,15 +453,15 @@ export default function Checkout({ isOpen, onClose, items }: CheckoutProps) {
                           {availableRates.map((rate, idx) => (
                             <div key={idx} className="flex justify-between items-center mb-2 p-2 border rounded">
                               <div>
-                                <div className="font-medium">{rate.service_level?.name || 'Option ' + (idx + 1)}</div>
-                                <div className="text-xs text-gray-500">{rate.service_level?.description}</div>
+                                <div className="font-medium">{rate.service_level?.name || rate.service || 'Option ' + (idx + 1)}</div>
+                                <div className="text-xs text-gray-500">{rate.service_level?.description || rate.days}</div>
                               </div>
                               <button
                                 type="button"
-                                className={`px-3 py-1 rounded ${deliveryFee === rate.rate ? 'bg-black text-white' : 'bg-gray-100'}`}
-                                onClick={() => setDeliveryFee(rate.rate)}
+                                className={`px-3 py-1 rounded ${deliveryFee === (rate.rate || rate.price) ? 'bg-black text-white' : 'bg-gray-100'}`}
+                                onClick={() => setDeliveryFee(rate.rate || rate.price)}
                               >
-                                {formatCurrency(rate.rate)}
+                                {formatCurrency(rate.rate || rate.price || 0)}
                               </button>
                             </div>
                           ))}

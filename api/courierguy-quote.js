@@ -121,17 +121,21 @@ export default async function handler(req, res) {
       success: true,
       rates: [
         {
-          service: 'Standard Delivery',
-          price: 65.00,
+          service_level: {
+            name: 'Standard Delivery',
+            description: '2-3 business days'
+          },
+          rate: 65.00,
           currency: 'ZAR',
-          days: '2-3 business days',
           provider: 'Fallback Service'
         },
         {
-          service: 'Express Delivery',
-          price: 95.00,
-          currency: 'ZAR', 
-          days: '1-2 business days',
+          service_level: {
+            name: 'Express Delivery', 
+            description: '1-2 business days'
+          },
+          rate: 95.00,
+          currency: 'ZAR',
           provider: 'Fallback Service'
         }
       ],
@@ -152,10 +156,12 @@ export default async function handler(req, res) {
       success: true,
       rates: [
         {
-          service: 'Standard Delivery',
-          price: 65.00,
+          service_level: {
+            name: 'Standard Delivery',
+            description: '2-3 business days'
+          },
+          rate: 65.00,
           currency: 'ZAR',
-          days: '2-3 business days',
           provider: 'Fallback Service'
         }
       ],
