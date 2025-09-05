@@ -1,21 +1,18 @@
 // API configuration utility
 export const getApiBaseUrl = (): string => {
+  // Force production URL if we're on Vercel domain
+  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    const productionUrl = 'https://project-igovu.vercel.app/api';
+    console.log('Forcing production API URL:', productionUrl);
+    return productionUrl;
+  }
+
   // First, try to get from environment variable
   const envUrl = import.meta.env.VITE_API_BASE_URL;
   
-  if (envUrl) {
+  if (envUrl && !envUrl.includes('localhost')) {
     console.log('Using API URL from environment:', envUrl);
     return envUrl;
-  }
-  
-  // Check if we're in development mode
-  const isDevelopment = import.meta.env.MODE === 'development';
-  
-  // For local development, use the Express server for Yoco proxy
-  if (isDevelopment) {
-    // Use localhost:4000 for specific payment-related endpoints
-    console.log('Using development API URL: http://localhost:4000/api');
-    return 'http://localhost:4000/api';
   }
   
   // For production, construct from current origin

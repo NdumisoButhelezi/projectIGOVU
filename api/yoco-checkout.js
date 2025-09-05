@@ -60,7 +60,7 @@ module.exports = async (req, res) => {
 
       console.log('Sending to Yoco Checkout API:', JSON.stringify(checkoutPayload, null, 2));
       
-      const checkoutResponse = await fetch('https://online.yoco.com/v1/checkouts/', {
+      const checkoutResponse = await fetch('https://payments.yoco.com/api/checkouts', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${YOCO_SECRET_KEY}`,
