@@ -31,9 +31,9 @@ export const getApiBaseUrl = (): string => {
 export const API_ENDPOINTS = {
   YOCO_CHECKOUT: '/yoco-checkout',
   COURIERGUY_QUOTE: '/courierguy-quote',
-  SYNC_STOCK: '/sync-stock',
+  SYNC_STOCK: '/sync-stock-simple',
   PROCESS_STOCK_QUEUE: '/process-stock-queue',
-  CHECK_STOCK: '/check-stock',
+  CHECK_STOCK: '/check-stock-simple',
   GEOCODE: '/geocode',
   HELLO: '/hello',
 } as const;
