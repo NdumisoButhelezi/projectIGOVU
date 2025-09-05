@@ -1,6 +1,6 @@
 // Direct Yoco API integration for serverless deployment
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -140,4 +140,4 @@ module.exports = async (req, res) => {
       stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
     });
   }
-};
+}

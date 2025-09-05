@@ -1,7 +1,7 @@
 // Stock synchronization queue processor
-const admin = require('../firebase-admin.cjs');
+import admin from '../firebase-admin.cjs';
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -143,4 +143,4 @@ module.exports = async (req, res) => {
       timestamp: new Date().toISOString()
     });
   }
-};
+}

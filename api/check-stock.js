@@ -1,11 +1,11 @@
 // Stock checking API endpoint
-const admin = require('../firebase-admin.cjs');
+import admin from '../firebase-admin.cjs';
 
 // Product stock cache to reduce database queries
 const stockCache = new Map();
 const cacheTTL = 60 * 1000; // 1 minute cache TTL
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -116,4 +116,4 @@ module.exports = async (req, res) => {
       errorOccurred: true
     });
   }
-};
+}
