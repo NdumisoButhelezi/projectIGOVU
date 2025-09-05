@@ -40,3 +40,5 @@ firebase-debug.*.log
 
 # Server config with sensitive data
 server/config/*.json
+
+.vercel
