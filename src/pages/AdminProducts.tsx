@@ -1,5 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { getFirestore, collection, getDocs, doc, updateDoc, writeBatch, deleteDoc } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  collection, 
+  getDocs, 
+  doc, 
+  updateDoc, 
+  writeBatch, 
+  deleteDoc,
+  query,
+  limit,
+  startAfter,
+  DocumentData,
+  QueryDocumentSnapshot,
+  Query
+} from 'firebase/firestore';
 import { app } from '../config/firebase';
 
 interface FirebaseTimestamp {
@@ -361,40 +375,93 @@ export default function AdminProducts() {
       try {
         const db = getFirestore(app);
         
-        // Fetch products with proper typing and consistent structure
-        const productsSnap = await getDocs(collection(db, 'products'));
-        const productsList = productsSnap.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            name: data.name || '',
-            price: Number(data.price) || 0,
-            sizes: data.sizes || '',
-            category: data.category || '',
-            stock: Number(data.stock) || 0,
-            originalStock: Number(data.originalStock) || Number(data.baseStock) || Number(data.stock) || 0,
-            baseStock: Number(data.baseStock) || Number(data.stock) || 0
-          } as Product;
-        });
+        // Fetch products with pagination to avoid size limits
+        const BATCH_SIZE = 100;
+        let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+        let allProducts: Product[] = [];
         
-        // Fetch transactions with proper typing and consistent structure
-        const transactionsSnap = await getDocs(collection(db, 'transactions'));
-        const transactionsList = transactionsSnap.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            items: Array.isArray(data.items) ? data.items : [],
-            customerName: data.customerName || '',
-            customerEmail: data.customerEmail || '',
-            amount: Number(data.amount) || 0,
-            deliveryMethod: data.deliveryMethod || '',
-            status: data.status || 'pending',
-            timestamp: data.timestamp || data.date || null,
-            date: data.date || data.timestamp || null,
-            deliveryAddress: data.deliveryAddress || '',
-            trackingNote: data.trackingNote || ''
-          } as Transaction;
-        });
+        do {
+          // Create a query with proper typing
+          const constraints = [] as any[];
+          if (lastDoc) {
+            constraints.push(startAfter(lastDoc));
+          }
+          constraints.push(limit(BATCH_SIZE));
+          
+          const q = query(collection(db, 'products'), ...constraints);
+          const productsSnap = await getDocs(q);
+          
+          if (productsSnap.empty) break;
+          
+          // Process this batch
+          const batchProducts = productsSnap.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              name: data.name || '',
+              price: Number(data.price) || 0,
+              sizes: data.sizes || '',
+              category: data.category || '',
+              stock: Number(data.stock) || 0,
+              originalStock: Number(data.originalStock) || Number(data.baseStock) || Number(data.stock) || 0,
+              baseStock: Number(data.baseStock) || Number(data.stock) || 0
+            } as Product;
+          });
+          
+          allProducts = [...allProducts, ...batchProducts];
+          
+          // Get the last document for the next iteration
+          lastDoc = productsSnap.docs[productsSnap.docs.length - 1] || null;
+          
+          // Continue if we got a full batch (there might be more)
+          if (productsSnap.docs.length < BATCH_SIZE) break;
+          
+        } while (lastDoc);
+        
+        const productsList = allProducts;
+        
+        // Fetch transactions with pagination
+        let lastTransactionDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+        let allTransactions: Transaction[] = [];
+        
+        do {
+          const transConstraints = [] as any[];
+          if (lastTransactionDoc) {
+            transConstraints.push(startAfter(lastTransactionDoc));
+          }
+          transConstraints.push(limit(BATCH_SIZE));
+          
+          const transQuery = query(collection(db, 'transactions'), ...transConstraints);
+          const transactionsSnap = await getDocs(transQuery);
+          
+          if (transactionsSnap.empty) break;
+          
+          const batchTransactions = transactionsSnap.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              items: Array.isArray(data.items) ? data.items : [],
+              customerName: data.customerName || '',
+              customerEmail: data.customerEmail || '',
+              amount: Number(data.amount) || 0,
+              deliveryMethod: data.deliveryMethod || '',
+              status: data.status || 'pending',
+              timestamp: data.timestamp || data.date || null,
+              date: data.date || data.timestamp || null,
+              deliveryAddress: data.deliveryAddress || '',
+              trackingNote: data.trackingNote || ''
+            } as Transaction;
+          });
+          
+          allTransactions = [...allTransactions, ...batchTransactions];
+          
+          lastTransactionDoc = transactionsSnap.docs[transactionsSnap.docs.length - 1] || null;
+          
+          if (transactionsSnap.docs.length < BATCH_SIZE) break;
+          
+        } while (lastTransactionDoc);
+        
+        const transactionsList = allTransactions;
         
         // Track invalid product IDs - do this once during data load
         const invalidIds = new Set<string>();
