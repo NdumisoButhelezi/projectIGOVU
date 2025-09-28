@@ -165,21 +165,86 @@ export default function AdminDashboard() {
     setShowEditProduct(true);
   };
   const handleUpdateProduct = async (updated: any) => {
-    await updateDoc(doc(db, "products", updated.id), updated);
-    setProducts(ps => ps.map(p => p.id === updated.id ? updated : p));
-    setShowEditProduct(false);
-    setEditProduct(null);
-    setToast("Product updated");
+    try {
+      // Store images separately
+      const images = updated.images || [];
+      
+      // Update product without images first
+      const productWithoutImages = {
+        ...updated,
+        images: [], // Clear images array temporarily
+        lastUpdated: new Date().toISOString()
+      };
+      
+      // Update the base product data
+      await updateDoc(doc(db, "products", updated.id), productWithoutImages);
+      
+      // If there are images, update them in chunks
+      if (images.length > 0) {
+        for (let i = 0; i < images.length; i++) {
+          try {
+            // Update each image individually
+            await updateDoc(doc(db, "products", updated.id), {
+              [`images.${i}`]: images[i]
+            });
+          } catch (error) {
+            console.error(`Error updating image ${i}:`, error);
+            // Continue with other images even if one fails
+          }
+        }
+      }
+      
+      setProducts(ps => ps.map(p => p.id === updated.id ? { ...productWithoutImages, images } : p));
+      setShowEditProduct(false);
+      setEditProduct(null);
+      setToast("Product updated successfully");
+    } catch (error) {
+      console.error("Error updating product:", error);
+      setToast("Error updating product. Please try again.");
+    }
   };
 
-  // Create product in Firestore
+  // Create product in Firestore with chunked image handling
   const handleCreateProduct = async (product: any) => {
-    await addDoc(collection(db, "products"), product);
-    // Refresh products list
-    const querySnapshot = await getDocs(collection(db, "products"));
-    setProducts(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    setShowCreateProduct(false);
-    setToast("Product created");
+    try {
+      // Temporarily store images
+      const images = product.images || [];
+      
+      // Create product without images first
+      const productWithoutImages = {
+        ...product,
+        images: [], // Clear images array temporarily
+        timestamp: new Date().toISOString()
+      };
+      
+      // Add the product document first
+      const docRef = await addDoc(collection(db, "products"), productWithoutImages);
+      
+      // If there are images, update them in chunks
+      if (images.length > 0) {
+        // Process each image
+        for (let i = 0; i < images.length; i++) {
+          try {
+            // Update the product document with each image
+            await updateDoc(doc(db, "products", docRef.id), {
+              [`images.${i}`]: images[i]
+            });
+          } catch (error) {
+            console.error(`Error uploading image ${i}:`, error);
+            // Continue with other images even if one fails
+          }
+        }
+      }
+      
+      // Refresh products list
+      const querySnapshot = await getDocs(collection(db, "products"));
+      setProducts(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setShowCreateProduct(false);
+      setToast("Product created successfully");
+    } catch (error) {
+      console.error("Error creating product:", error);
+      setToast("Error creating product. Please try again.");
+    }
   };
 
   // Tracking note
