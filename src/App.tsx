@@ -13,13 +13,13 @@ import Gallery from './pages/Gallery';
 import Items from './pages/Items';
 import Men from './pages/Men';
 import Women from './pages/Women';
-import ProductDetail from './components/ProductDetail';
+import ProductDetailPage from './pages/ProductDetailPage';
 import PaymentSuccess from './pages/PaymentSuccess';
 import PaymentCancelled from './pages/PaymentCancelled';
 import PaymentFailed from './pages/PaymentFailed';
 import OrderHistory from './pages/OrderHistory';
 import DeliveryInfo from './pages/DeliveryInfo';
-import { getFirestore, collection, onSnapshot, query, orderBy, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { app } from './config/firebase';
 import { useAuth } from './contexts/AuthContext';
 import AdminDashboard from './components/AdminDashboard';
@@ -49,25 +49,98 @@ function App() {
   const navigate = useNavigate();
   const { uploadProduct, currentUser } = useAuth();
 
-  // Fetch products from Firestore in real time
+  // Fetch products from Firestore in real time with proper image reconstruction
   useEffect(() => {
     setIsLoading(true);
     const db = getFirestore(app);
-    const q = query(collection(db, 'products'), orderBy('name'));
+    // Use a simpler query without orderBy to avoid issues with missing fields
+    const q = collection(db, 'products');
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const productsData = snapshot.docs.map((doc, idx) => {
+      console.log(`App.tsx: Received ${snapshot.docs.length} products from Firestore`);
+      console.log(`App.tsx: Raw snapshot data:`, snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      
+      const productsData = snapshot.docs.map((doc) => {
         const data = doc.data();
-        // Ensure id is a number for compatibility with Product type
-        return {
-          ...data,
-          id: data.id ? data.id : idx + 1, // fallback if no id field
+        
+        // Reconstruct images array from individual image fields (chunked format)
+        const images: string[] = [];
+        let imageIndex = 0;
+        while (data[`images.${imageIndex}`]) {
+          images.push(data[`images.${imageIndex}`]);
+          imageIndex++;
+        }
+        
+        // If no chunked images found, use the original images array
+        if (images.length === 0 && data.images && Array.isArray(data.images)) {
+          images.push(...data.images);
+        }
+        
+        // Construct proper product object
+        const product = {
+          id: doc.id, // Use Firestore document ID as string
+          name: data.name || '',
+          price: Number(data.price) || 0,
+          category: data.category || '',
+          description: data.description || '',
+          sizes: data.sizes || data.size || [],
+          stock: Number(data.stock) || 0,
+          images: images.length > 0 ? images : (data.images || []),
+          color: data.color || '',
+          collection: data.collection || '',
+          features: data.features || [],
+          care: data.care || [],
+          gender: data.gender || '',
+          material: data.material || '',
+          fit: data.fit || '',
+          occasion: data.occasion || '',
+          season: data.season || '',
+          brand: data.brand || '',
+          sku: data.sku || '',
+          length_cm: Number(data.length_cm) || undefined,
+          width_cm: Number(data.width_cm) || undefined,
+          height_cm: Number(data.height_cm) || undefined,
+          weight_kg: Number(data.weight_kg) || undefined,
+          measurement_unit: data.measurement_unit || 'cm',
+          weight_unit: data.weight_unit || 'kg',
+          createdAt: data.createdAt || data.timestamp || new Date().toISOString(),
+          lastUpdated: data.lastUpdated || data.timestamp || new Date().toISOString()
         } as Product;
+        
+        console.log(`App.tsx: Processed product ${product.name}`, {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          images: product.images?.length || 0,
+          category: product.category
+        });
+        
+        return product;
       });
-      setProducts(productsData);
+      
+      // Filter out products without essential data (less strict filtering)
+      const validProducts = productsData.filter(product => {
+        const isValid = product.name && product.name.trim() !== '';
+        if (!isValid) {
+          console.log(`App.tsx: Filtering out invalid product:`, product);
+        }
+        return isValid;
+      });
+      
+      // Sort products by name on client side
+      const sortedProducts = validProducts.sort((a, b) => {
+        const nameA = (a.name || '').toLowerCase();
+        const nameB = (b.name || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+      
+      console.log(`App.tsx: Setting ${sortedProducts.length} valid products (filtered from ${productsData.length})`);
+      console.log(`App.tsx: Products:`, sortedProducts.map(p => ({ id: p.id, name: p.name, price: p.price })));
+      
+      setProducts(sortedProducts);
       setIsLoading(false);
-      console.log(`Loaded ${productsData.length} products, loading state: ${isLoading ? 'loading' : 'complete'}`);
+      console.log(`App.tsx: Loaded ${validProducts.length} products, loading state: complete`);
     }, (error) => {
-      console.error("Error fetching products:", error);
+      console.error("App.tsx: Error fetching products:", error);
       setIsLoading(false);
     });
     return () => unsubscribe();
@@ -96,47 +169,83 @@ function App() {
   // See Items.tsx for an example of how filters are applied
 
   const addToCart = async (product: Product) => {
+    console.log('App.tsx: Adding product to cart:', product.name, 'ID:', product.id);
+    
     // Fetch latest stock from Firestore
     const db = getFirestore(app);
     const productRef = doc(db, 'products', String(product.id));
-    const productSnap = await getDoc(productRef);
-    const latestProduct = productSnap.exists() ? { id: productSnap.id, ...productSnap.data() } as Product : product;
+    
+    try {
+      const productSnap = await getDoc(productRef);
+      const latestProduct = productSnap.exists() ? { 
+        ...productSnap.data(), 
+        id: productSnap.id 
+      } as Product : product;
 
-    // Find current quantity in cart
-    const cartItem = cartItems.find(item => String(item.id) === String(product.id));
-    const cartQuantity = cartItem ? cartItem.quantity : 0;
-    const availableStock = typeof latestProduct.stock === 'number' ? latestProduct.stock : Infinity;
+      // Find current quantity in cart
+      const cartItem = cartItems.find(item => String(item.id) === String(product.id));
+      const cartQuantity = cartItem ? cartItem.quantity : 0;
+      const availableStock = typeof latestProduct.stock === 'number' ? latestProduct.stock : Infinity;
 
-    if (availableStock <= 0) {
-      alert('Sorry, this product is out of stock.');
-      return;
-    }
-    if (cartQuantity + 1 > availableStock) {
-      alert('You have reached the maximum available stock for this product.');
-      return;
-    }
+      console.log('App.tsx: Stock check - Available:', availableStock, 'In cart:', cartQuantity);
 
-    setCartItems(items => {
-      const existingItem = items.find(item => String(item.id) === String(product.id));
-      if (existingItem) {
-        return items.map(item =>
-          String(item.id) === String(product.id)
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
+      if (availableStock <= 0) {
+        alert('Sorry, this product is out of stock.');
+        return;
       }
-      return [
-        ...items,
-        {
-          ...product,
-          quantity: 1,
-          length_cm: product.length_cm ?? 20,
-          width_cm: product.width_cm ?? 20,
-          height_cm: product.height_cm ?? 10,
-          weight_kg: product.weight_kg ?? 1
+      if (cartQuantity + 1 > availableStock) {
+        alert('You have reached the maximum available stock for this product.');
+        return;
+      }
+
+      setCartItems(items => {
+        const existingItem = items.find(item => String(item.id) === String(product.id));
+        if (existingItem) {
+          console.log('App.tsx: Updating existing cart item quantity');
+          return items.map(item =>
+            String(item.id) === String(product.id)
+              ? { ...item, quantity: item.quantity + 1 }
+              : item
+          );
         }
-      ];
-    });
+        console.log('App.tsx: Adding new item to cart');
+        return [
+          ...items,
+          {
+            ...product,
+            quantity: 1,
+            length_cm: product.length_cm ?? 20,
+            width_cm: product.width_cm ?? 20,
+            height_cm: product.height_cm ?? 10,
+            weight_kg: product.weight_kg ?? 1
+          }
+        ];
+      });
+    } catch (error) {
+      console.error('App.tsx: Error checking stock:', error);
+      // Continue with adding to cart using current product data
+      setCartItems(items => {
+        const existingItem = items.find(item => String(item.id) === String(product.id));
+        if (existingItem) {
+          return items.map(item =>
+            String(item.id) === String(product.id)
+              ? { ...item, quantity: item.quantity + 1 }
+              : item
+          );
+        }
+        return [
+          ...items,
+          {
+            ...product,
+            quantity: 1,
+            length_cm: product.length_cm ?? 20,
+            width_cm: product.width_cm ?? 20,
+            height_cm: product.height_cm ?? 10,
+            weight_kg: product.weight_kg ?? 1
+          }
+        ];
+      });
+    }
   };
 
   const updateQuantity = (id: string, quantity: number) => {
@@ -198,14 +307,15 @@ function App() {
               availableFilters={availableFilters}
               onAddToCart={addToCart}
               onOpenAuth={() => setIsAuthModalOpen(true)}
+              products={products}
             />
           } 
         />
         <Route 
           path="/product/:id" 
           element={
-            <ProductDetail 
-              product={products.find(p => String(p.id) === String(location.pathname.split('/').pop())) || products[0]} 
+            <ProductDetailPage 
+              products={products}
               onAddToCart={addToCart}
             />
           } 

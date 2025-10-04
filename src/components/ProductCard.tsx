@@ -12,6 +12,7 @@ interface ProductCardProps {
 
 export default function ProductCard({ product, onAddToCart, onOpenAuth, compact = false }: ProductCardProps) {
   const { currentUser } = useAuth();
+  const [imageError, setImageError] = useState(false);
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -22,9 +23,13 @@ export default function ProductCard({ product, onAddToCart, onOpenAuth, compact 
     }
   };
 
-  const mainImage = Array.isArray(product.images) && product.images.length > 0
+  const mainImage = Array.isArray(product.images) && product.images.length > 0 && product.images[0]
     ? product.images[0]
-    : 'https://via.placeholder.com/300x300?text=No+Image';
+    : '/1G5A2160.jpg'; // Use a default image from your public folder
+
+  const handleImageError = () => {
+    setImageError(true);
+  };
 
   // Safe size handling - check both 'sizes' and 'size' fields
   const sizes: string[] = Array.isArray((product as any).sizes)
@@ -37,93 +42,126 @@ export default function ProductCard({ product, onAddToCart, onOpenAuth, compact 
     <Link 
       to={compact ? "#" : `/product/${product.id}`}
       onClick={compact ? (e) => { e.preventDefault(); onAddToCart && onAddToCart(product); } : undefined}
-      className={`group relative bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden ${
-        compact ? 'p-4 flex flex-row items-start gap-4 min-h-[140px]' : 'p-4'
+      className={`group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden border border-gray-100 hover:border-gray-200 ${
+        compact ? 'p-6 flex flex-row items-start gap-6 min-h-[160px]' : 'p-6'
       }`}
     >
       <div className={compact ? 'flex gap-4 w-full' : 'space-y-4'}>
-        {/* Image */}
-        <div className={compact ? 'w-24 h-24 flex-shrink-0 rounded-xl overflow-hidden bg-gray-100' : 'aspect-square w-full overflow-hidden rounded-xl bg-gray-100 relative'}>
+        {/* Enhanced Image with Better Aspect Ratio */}
+        <div className={compact ? 'w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 shadow-inner' : 'aspect-square w-full overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 relative shadow-inner'}>
           <img
-            src={mainImage}
+            src={imageError ? '/1G5A2160.jpg' : mainImage}
             alt={product.name}
-            className="w-full h-full object-cover object-center transition-transform duration-300 group-hover:scale-105"
+            onError={handleImageError}
+            className="w-full h-full object-cover object-center transition-all duration-500 group-hover:scale-110 group-hover:brightness-105"
           />
-          {/* Image count indicator for multiple images */}
+          {/* Enhanced image count indicator */}
           {!compact && Array.isArray(product.images) && product.images.length > 1 && (
-            <div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-full">
-              +{product.images.length - 1}
+            <div className="absolute top-3 right-3 bg-black bg-opacity-70 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full font-medium">
+              +{product.images.length - 1} more
             </div>
           )}
+          {/* Hover overlay */}
+          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-300"></div>
         </div>
 
-        {/* Product Info */}
-        <div className={compact ? 'flex-1 min-w-0 space-y-3' : 'space-y-4'}>
-          {/* Title and Description */}
+        {/* Enhanced Product Info */}
+        <div className={compact ? 'flex-1 min-w-0 space-y-4' : 'space-y-5'}>
+          {/* Title and Description with Better Typography */}
           <div>
-            <h3 className={`font-bold text-gray-900 ${compact ? 'text-lg mb-1' : 'text-xl mb-2'}`}>
+            <h3 className={`font-bold text-gray-900 leading-tight group-hover:text-black transition-colors ${compact ? 'text-xl mb-2' : 'text-2xl mb-3'}`}>
               {product.name}
             </h3>
-            {/* Show description in both compact and full view */}
-            <p className={`text-gray-600 ${compact ? 'text-sm line-clamp-2' : 'text-sm line-clamp-3'}`}>
+            <p className={`text-gray-600 leading-relaxed ${compact ? 'text-sm line-clamp-2' : 'text-base line-clamp-3'}`}>
               {product.description}
             </p>
           </div>
 
-          {/* Price */}
-          <div className="flex items-center justify-between">
-            <span className={`font-bold text-black ${compact ? 'text-xl' : 'text-2xl'}`}>
-              R {product.price.toFixed(2)}
-            </span>
-            <span className="text-sm text-gray-500">incl. VAT</span>
+          {/* Enhanced Price Display */}
+          <div className="flex items-baseline justify-between">
+            <div className="flex items-baseline gap-2">
+              <span className={`font-bold text-black ${compact ? 'text-2xl' : 'text-3xl'}`}>
+                R {product.price.toFixed(2)}
+              </span>
+              <span className="text-sm text-gray-500 font-medium">incl. VAT</span>
+            </div>
+            {/* Price per item indicator for bulk orders */}
+            <div className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded-full">
+              Per item
+            </div>
           </div>
 
-          {/* Available Sizes */}
+          {/* Enhanced Available Sizes */}
           {sizes.length > 0 && (
             <div>
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">Available Sizes:</h4>
+              <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                Available Sizes
+              </h4>
               <div className="grid grid-cols-4 gap-2">
-                {sizes.map(size => (
+                {sizes.slice(0, 4).map(size => (
                   <div 
                     key={size}
-                    className="bg-gray-100 border border-gray-200 rounded-lg py-2 px-2 text-center text-sm font-medium hover:bg-gray-200 transition-colors"
+                    className="bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 rounded-lg py-2 px-3 text-center text-sm font-semibold hover:from-gray-100 hover:to-gray-150 hover:border-gray-300 transition-all transform hover:scale-105 shadow-sm"
                   >
                     {size}
                   </div>
                 ))}
+                {sizes.length > 4 && (
+                  <div className="bg-gray-200 border border-gray-300 rounded-lg py-2 px-3 text-center text-xs font-medium text-gray-600">
+                    +{sizes.length - 4}
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* Category and Stock Info */}
-          <div className="space-y-2">
-            {product.category && (
+          {/* Enhanced Category and Stock Info */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              {product.category && (
+                <div className="flex items-center gap-2">
+                  <span className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                    {product.category}
+                  </span>
+                </div>
+              )}
+              
+              {/* Enhanced Stock Status */}
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500">Category:</span>
-                <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs font-medium">
-                  {product.category}
+                <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-2 border border-green-200">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                  In Stock
                 </span>
               </div>
-            )}
+            </div>
             
-            {/* Stock Status */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-gray-500">Status:</span>
-              <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                In Stock
+            {/* Additional product highlights */}
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <span className="flex items-center gap-1">
+                <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                Premium Quality
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                Fast Delivery
               </span>
             </div>
           </div>
 
-          {/* Action Button */}
+          {/* Enhanced Action Button */}
           <button
             onClick={handleAddToCart}
-            className={`w-full bg-black text-white rounded-xl font-semibold hover:bg-gray-800 transition-all transform hover:scale-[1.02] ${
-              compact ? 'py-2 text-sm' : 'py-3 text-base'
-            }`}
+            className={`w-full bg-gradient-to-r from-black to-gray-800 text-white rounded-xl font-bold hover:from-gray-800 hover:to-black transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl ${
+              compact ? 'py-3 text-sm' : 'py-4 text-base'
+            } relative overflow-hidden group-hover:shadow-2xl`}
           >
-            Add to Cart
+            <span className="relative z-10 flex items-center justify-center gap-2">
+              Add to Cart
+              <span className="text-lg">+</span>
+            </span>
+            {/* Subtle animated background on hover */}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-0 group-hover:opacity-20 transform -skew-x-12 translate-x-[-100%] group-hover:translate-x-[100%] transition-all duration-700"></div>
           </button>
         </div>
       </div>

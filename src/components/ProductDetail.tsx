@@ -171,8 +171,14 @@ export default function ProductDetail({ product, onAddToCart }: { product: Produ
             <div className="relative group">
               <div className="aspect-square rounded-2xl overflow-hidden bg-white shadow-lg relative">
                 <img 
-                  src={product.images?.[selectedImage] || product.images?.[0]}
+                  src={product.images?.[selectedImage] || product.images?.[0] || '/1G5A2160.jpg'}
                   alt={product.name}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (target.src !== '/1G5A2160.jpg') {
+                      target.src = '/1G5A2160.jpg';
+                    }
+                  }}
                   className={`w-full h-full object-cover transition-all duration-300 ${imageLoading ? 'opacity-70 scale-105' : 'opacity-100 scale-100'}`}
                 />
                 
@@ -232,8 +238,14 @@ export default function ProductDetail({ product, onAddToCart }: { product: Produ
                     }`}
                   >
                     <img 
-                      src={image}
+                      src={image || '/1G5A2160.jpg'}
                       alt={`${product.name} view ${index + 1}`}
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        if (target.src !== '/1G5A2160.jpg') {
+                          target.src = '/1G5A2160.jpg';
+                        }
+                      }}
                       className="w-full h-full object-cover"
                     />
                   </button>
@@ -470,8 +482,14 @@ export default function ProductDetail({ product, onAddToCart }: { product: Produ
         <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4">
           <div className="relative max-w-4xl max-h-full">
             <img
-              src={product.images?.[selectedImage]}
+              src={product.images?.[selectedImage] || '/1G5A2160.jpg'}
               alt={product.name}
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (target.src !== '/1G5A2160.jpg') {
+                  target.src = '/1G5A2160.jpg';
+                }
+              }}
               className="max-w-full max-h-full object-contain"
             />
             <button

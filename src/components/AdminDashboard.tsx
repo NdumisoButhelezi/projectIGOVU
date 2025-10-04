@@ -72,9 +72,24 @@ export default function AdminDashboard() {
         const querySnapshot = await getDocs(collection(db, "products"));
         const productsList = querySnapshot.docs.map(doc => {
           const data = doc.data();
+          
+          // Reconstruct images array from individual image fields
+          const images: string[] = [];
+          let imageIndex = 0;
+          while (data[`images.${imageIndex}`]) {
+            images.push(data[`images.${imageIndex}`]);
+            imageIndex++;
+          }
+          
+          // If no chunked images found, use the original images array
+          if (images.length === 0 && data.images && Array.isArray(data.images)) {
+            images.push(...data.images);
+          }
+          
           return {
             id: doc.id,
             ...data,
+            images: images.length > 0 ? images : data.images, // Keep original images if no chunked ones
             name: data.name || '',
             price: Number(data.price) || 0,
             sizes: data.sizes || '',
@@ -198,6 +213,9 @@ export default function AdminDashboard() {
       setShowEditProduct(false);
       setEditProduct(null);
       setToast("Product updated successfully");
+      
+      // Notify other components that a product was updated
+      window.dispatchEvent(new CustomEvent('productUpdated', { detail: { productId: updated.id } }));
     } catch (error) {
       console.error("Error updating product:", error);
       setToast("Error updating product. Please try again.");
@@ -207,21 +225,34 @@ export default function AdminDashboard() {
   // Create product in Firestore with chunked image handling
   const handleCreateProduct = async (product: any) => {
     try {
+      console.log("AdminDashboard: Creating new product:", product.name);
+      
       // Temporarily store images
       const images = product.images || [];
       
-      // Create product without images first
-      const productWithoutImages = {
+      // Ensure required fields are present
+      const productData = {
         ...product,
-        images: [], // Clear images array temporarily
-        timestamp: new Date().toISOString()
+        name: product.name || '',
+        price: Number(product.price) || 0,
+        category: product.category || '',
+        description: product.description || '',
+        stock: Number(product.stock) || 0,
+        images: [], // Clear images array temporarily - will be added in chunks
+        timestamp: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        lastUpdated: new Date().toISOString()
       };
       
+      console.log("AdminDashboard: Product data to save:", productData);
+      
       // Add the product document first
-      const docRef = await addDoc(collection(db, "products"), productWithoutImages);
+      const docRef = await addDoc(collection(db, "products"), productData);
+      console.log("AdminDashboard: Product created with ID:", docRef.id);
       
       // If there are images, update them in chunks
       if (images.length > 0) {
+        console.log("AdminDashboard: Adding", images.length, "images");
         // Process each image
         for (let i = 0; i < images.length; i++) {
           try {
@@ -229,20 +260,23 @@ export default function AdminDashboard() {
             await updateDoc(doc(db, "products", docRef.id), {
               [`images.${i}`]: images[i]
             });
+            console.log(`AdminDashboard: Added image ${i + 1}/${images.length}`);
           } catch (error) {
-            console.error(`Error uploading image ${i}:`, error);
+            console.error(`AdminDashboard: Error uploading image ${i}:`, error);
             // Continue with other images even if one fails
           }
         }
       }
       
-      // Refresh products list
-      const querySnapshot = await getDocs(collection(db, "products"));
-      setProducts(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setShowCreateProduct(false);
       setToast("Product created successfully");
+      
+      console.log("AdminDashboard: Product creation completed successfully");
+      
+      // The App.tsx real-time listener will automatically pick up the new product
+      // No need to manually refresh the products list here
     } catch (error) {
-      console.error("Error creating product:", error);
+      console.error("AdminDashboard: Error creating product:", error);
       setToast("Error creating product. Please try again.");
     }
   };
@@ -525,7 +559,29 @@ export default function AdminDashboard() {
               setLoadingProducts(true);
               try {
                 const querySnapshot = await getDocs(collection(db, "products"));
-                setProducts(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                const productsList = querySnapshot.docs.map(doc => {
+                  const data = doc.data();
+                  
+                  // Reconstruct images array from individual image fields
+                  const images: string[] = [];
+                  let imageIndex = 0;
+                  while (data[`images.${imageIndex}`]) {
+                    images.push(data[`images.${imageIndex}`]);
+                    imageIndex++;
+                  }
+                  
+                  // If no chunked images found, use the original images array
+                  if (images.length === 0 && data.images && Array.isArray(data.images)) {
+                    images.push(...data.images);
+                  }
+                  
+                  return {
+                    id: doc.id,
+                    ...data,
+                    images: images.length > 0 ? images : data.images
+                  };
+                });
+                setProducts(productsList);
                 setLastSync(new Date());
                 setToast("Product inventory refreshed");
               } catch (error) {
