@@ -138,22 +138,43 @@ export default function Men({ onAddToCart, onOpenAuth }: MenProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-3xl font-bold text-center mb-12">Shop by Category</h2>
           <div className="grid md:grid-cols-3 gap-8">
-            {['Hoodies', 'T-Shirts', 'Pants'].map((category, index) => (
+            {[
+              { name: 'Hoodies', image: '/1G5A2039.jpg' },
+              { name: 'T-Shirts', image: '/1G5A2081.jpg' },
+              { name: 'Pants', image: '/1G5A2104.jpg' }
+            ].map((category) => (
               <div 
-                key={category}
+                key={category.name}
                 className="group relative bg-gray-100 rounded-2xl overflow-hidden h-64 cursor-pointer transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl"
-                onClick={() => setCategoryFilter(category)}
+                onClick={() => setCategoryFilter(category.name)}
               >
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-10"></div>
+                {/* Category Background Image */}
+                <div 
+                  className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-110"
+                  style={{
+                    backgroundImage: `url('${category.image}')`
+                  }}
+                ></div>
+                
+                {/* Overlay Gradients */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent z-10"></div>
+                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-all duration-300 z-10"></div>
+                
+                {/* Category Content */}
                 <div className="absolute bottom-6 left-6 z-20">
-                  <h3 className="text-2xl font-bold text-white mb-2">{category}</h3>
-                  <p className="text-gray-200">Explore Collection</p>
+                  <h3 className="text-2xl font-bold text-white mb-2 drop-shadow-lg">{category.name}</h3>
+                  <p className="text-gray-200 drop-shadow-md">Explore Collection</p>
                 </div>
-                <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
-                    <ShoppingBag className="w-5 h-5 text-white" />
+                
+                {/* Hover Icon */}
+                <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/30">
+                    <ShoppingBag className="w-6 h-6 text-white" />
                   </div>
                 </div>
+                
+                {/* Subtle border animation */}
+                <div className="absolute inset-0 rounded-2xl border-2 border-transparent group-hover:border-white/30 transition-all duration-300 z-10"></div>
               </div>
             ))}
           </div>
@@ -161,8 +182,15 @@ export default function Men({ onAddToCart, onOpenAuth }: MenProps) {
       </div>
 
       {/* Products Section */}
-      <div id="products-section" className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div id="products-section" className="py-20 bg-gradient-to-b from-gray-50 to-white relative">
+        {/* Subtle Background Pattern */}
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute inset-0" style={{
+            backgroundImage: `url("data:image/svg+xml,%3csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3e%3cg fill='none' fill-rule='evenodd'%3e%3cg fill='%23000000' fill-opacity='1'%3e%3ccircle cx='30' cy='30' r='1'/%3e%3c/g%3e%3c/g%3e%3c/svg%3e")`
+          }}></div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           {/* Controls Bar */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
             <div>
@@ -232,7 +260,7 @@ export default function Men({ onAddToCart, onOpenAuth }: MenProps) {
             </div>
           </div>
 
-          {/* Products Grid/List */}
+          {/* Enhanced Products Grid/List with Better Separation */}
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-20">
               <LoadingSpinner size="large" color="#000000" />
@@ -241,17 +269,31 @@ export default function Men({ onAddToCart, onOpenAuth }: MenProps) {
           ) : filteredProducts.length > 0 ? (
             <div className={
               viewMode === 'grid' 
-                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                : "space-y-4"
+                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-10"
+                : "space-y-6"
             }>
-              {filteredProducts.map(product => (
-                <div key={product.id} onClick={() => navigate(`/product/${product.id}`)} className="cursor-pointer">
-                  <ProductCard
-                    product={product}
-                    onAddToCart={onAddToCart}
-                    onOpenAuth={onOpenAuth}
-                    compact={viewMode === 'list'}
-                  />
+              {filteredProducts.map((product, index) => (
+                <div 
+                  key={product.id} 
+                  className={`cursor-pointer animate-fade-in ${
+                    viewMode === 'grid' 
+                      ? 'transform hover:-translate-y-2 transition-all duration-300' 
+                      : ''
+                  }`}
+                  style={{
+                    animationDelay: `${index * 0.1}s`,
+                    animationFillMode: 'both'
+                  }}
+                  onClick={() => navigate(`/product/${product.id}`)}
+                >
+                  <div className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 p-2 border border-gray-100 hover:border-gray-200">
+                    <ProductCard
+                      product={product}
+                      onAddToCart={onAddToCart}
+                      onOpenAuth={onOpenAuth}
+                      compact={viewMode === 'list'}
+                    />
+                  </div>
                 </div>
               ))}
             </div>

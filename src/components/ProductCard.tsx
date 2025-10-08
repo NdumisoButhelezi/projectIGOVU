@@ -13,6 +13,7 @@ interface ProductCardProps {
 export default function ProductCard({ product, onAddToCart, onOpenAuth, compact = false }: ProductCardProps) {
   const { currentUser } = useAuth();
   const [imageError, setImageError] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -23,12 +24,32 @@ export default function ProductCard({ product, onAddToCart, onOpenAuth, compact 
     }
   };
 
-  const mainImage = Array.isArray(product.images) && product.images.length > 0 && product.images[0]
-    ? product.images[0]
-    : '/1G5A2160.jpg'; // Use a default image from your public folder
+  // Enhanced image handling with carousel functionality
+  const images = Array.isArray(product.images) && product.images.length > 0 
+    ? product.images 
+    : ['/1G5A2160.jpg'];
+  
+  const currentImage = images[currentImageIndex] || '/1G5A2160.jpg';
+  const hasMultipleImages = images.length > 1;
 
   const handleImageError = () => {
     setImageError(true);
+  };
+
+  const nextImage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (hasMultipleImages) {
+      setCurrentImageIndex((prev) => (prev + 1) % images.length);
+    }
+  };
+
+  const prevImage = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (hasMultipleImages) {
+      setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+    }
   };
 
   // Safe size handling - check both 'sizes' and 'size' fields
@@ -39,28 +60,72 @@ export default function ProductCard({ product, onAddToCart, onOpenAuth, compact 
       : [];
 
   return (
-    <Link 
-      to={compact ? "#" : `/product/${product.id}`}
-      onClick={compact ? (e) => { e.preventDefault(); onAddToCart && onAddToCart(product); } : undefined}
-      className={`group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden border border-gray-100 hover:border-gray-200 ${
-        compact ? 'p-6 flex flex-row items-start gap-6 min-h-[160px]' : 'p-6'
+    <div 
+      className={`group relative rounded-xl transition-all duration-300 overflow-hidden ${
+        compact ? 'p-4 flex flex-row items-start gap-4 min-h-[140px]' : 'p-4'
       }`}
     >
+      <Link 
+        to={`/product/${product.id}`}
+        className="absolute inset-0 z-10"
+        aria-label={`View ${product.name}`}
+      />
       <div className={compact ? 'flex gap-4 w-full' : 'space-y-4'}>
-        {/* Enhanced Image with Better Aspect Ratio */}
-        <div className={compact ? 'w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 shadow-inner' : 'aspect-square w-full overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 relative shadow-inner'}>
+        {/* Enhanced Image with Carousel Navigation */}
+        <div className={compact ? 'w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 shadow-inner relative' : 'aspect-square w-full overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 relative shadow-inner group/image'}>
           <img
-            src={imageError ? '/1G5A2160.jpg' : mainImage}
+            src={imageError ? '/1G5A2160.jpg' : currentImage}
             alt={product.name}
             onError={handleImageError}
             className="w-full h-full object-cover object-center transition-all duration-500 group-hover:scale-110 group-hover:brightness-105"
           />
+          
+          {/* Image Navigation for Multiple Images */}
+          {!compact && hasMultipleImages && (
+            <>
+              {/* Previous Image Button */}
+              <button
+                onClick={prevImage}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black bg-opacity-60 hover:bg-opacity-80 text-white rounded-full flex items-center justify-center opacity-0 group-hover/image:opacity-100 transition-all duration-300 z-10"
+                aria-label="Previous image"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              
+              {/* Next Image Button */}
+              <button
+                onClick={nextImage}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black bg-opacity-60 hover:bg-opacity-80 text-white rounded-full flex items-center justify-center opacity-0 group-hover/image:opacity-100 transition-all duration-300 z-10"
+                aria-label="Next image"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+              
+              {/* Image Indicator Dots */}
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 opacity-0 group-hover/image:opacity-100 transition-all duration-300">
+                {images.map((_, index) => (
+                  <div
+                    key={index}
+                    className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                      index === currentImageIndex ? 'bg-white' : 'bg-white bg-opacity-50'
+                    }`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+          
           {/* Enhanced image count indicator */}
-          {!compact && Array.isArray(product.images) && product.images.length > 1 && (
+          {!compact && hasMultipleImages && (
             <div className="absolute top-3 right-3 bg-black bg-opacity-70 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full font-medium">
-              +{product.images.length - 1} more
+              {currentImageIndex + 1}/{images.length}
             </div>
           )}
+          
           {/* Hover overlay */}
           <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all duration-300"></div>
         </div>
@@ -154,7 +219,7 @@ export default function ProductCard({ product, onAddToCart, onOpenAuth, compact 
             onClick={handleAddToCart}
             className={`w-full bg-gradient-to-r from-black to-gray-800 text-white rounded-xl font-bold hover:from-gray-800 hover:to-black transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl ${
               compact ? 'py-3 text-sm' : 'py-4 text-base'
-            } relative overflow-hidden group-hover:shadow-2xl`}
+            } relative overflow-hidden group-hover:shadow-2xl z-20`}
           >
             <span className="relative z-10 flex items-center justify-center gap-2">
               Add to Cart
@@ -165,6 +230,6 @@ export default function ProductCard({ product, onAddToCart, onOpenAuth, compact 
           </button>
         </div>
       </div>
-    </Link>
+    </div>
   );
 }

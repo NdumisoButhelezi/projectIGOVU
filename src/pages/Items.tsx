@@ -43,7 +43,7 @@ export default function Items({
     sizes: [] as string[],
     colors: [] as string[],
     collections: [] as string[],
-    maxPrice: 1000
+    maxPrice: 5000
   });
   
   // Use products from App.tsx
@@ -62,7 +62,7 @@ export default function Items({
         sizes: [],
         colors: [],
         collections: [],
-        maxPrice: 1000
+        maxPrice: 5000
       });
       return;
     }
@@ -74,7 +74,7 @@ export default function Items({
     const sizes = new Set<string>();
     const colors = new Set<string>();
     const collections = new Set<string>();
-    let maxPrice = 1000;
+    let maxPrice = 5000;
 
     products.forEach((product: Product) => {
       if (product.category) {

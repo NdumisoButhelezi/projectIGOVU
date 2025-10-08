@@ -39,7 +39,7 @@ function App() {
     gender: [],
     category: '',
     color: [],
-    priceRange: [0, 400],
+    priceRange: [0, 5000],
     collection: [],
     size: '',
     sortBy: 'name'
@@ -152,7 +152,7 @@ function App() {
         categories: [],
         colors: [],
         collections: [],
-        maxPrice: 1000
+        maxPrice: 5000
       };
     }
     
@@ -160,7 +160,7 @@ function App() {
       categories: [...new Set(products.filter(p => p && p.category).map(p => p.category))],
       colors: [...new Set(products.filter(p => p && p.color).map(p => p.color || ''))],
       collections: [...new Set(products.filter(p => p && p.collection).map(p => p.collection || '').filter(Boolean))],
-      maxPrice: Math.max(...products.filter(p => p && typeof p.price === 'number').map(p => p.price), 1000)
+      maxPrice: Math.max(...products.filter(p => p && typeof p.price === 'number').map(p => p.price), 5000)
     };
   }, [products]);
 

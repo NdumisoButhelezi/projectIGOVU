@@ -23,7 +23,7 @@ export default function FiltersComponent({
 }: FiltersComponentProps) {
   const [tempFilters, setTempFilters] = useState<Filters>({
     category: typeof filters.category === 'string' ? filters.category : '',
-    priceRange: filters.priceRange || [0, 1000],
+    priceRange: filters.priceRange || [0, 5000],
     size: typeof filters.size === 'string' ? filters.size : '',
     sortBy: filters.sortBy || 'name',
     gender: Array.isArray(filters.gender) ? [...filters.gender] : [],
@@ -35,7 +35,7 @@ export default function FiltersComponent({
   useEffect(() => {
     const safeFilters: Filters = {
       category: typeof filters.category === 'string' ? filters.category : '',
-      priceRange: filters.priceRange || [0, 1000],
+      priceRange: filters.priceRange || [0, 5000],
       size: typeof filters.size === 'string' ? filters.size : '',
       sortBy: filters.sortBy || 'name',
       gender: Array.isArray(filters.gender) ? [...filters.gender] : [],
@@ -49,7 +49,7 @@ export default function FiltersComponent({
   useEffect(() => {
     const filtersChanged = JSON.stringify(tempFilters) !== JSON.stringify({
       category: typeof filters.category === 'string' ? filters.category : '',
-      priceRange: filters.priceRange || [0, 1000],
+      priceRange: filters.priceRange || [0, 5000],
       size: typeof filters.size === 'string' ? filters.size : '',
       sortBy: filters.sortBy || 'name',
       gender: Array.isArray(filters.gender) ? [...filters.gender] : [],
@@ -77,7 +77,7 @@ export default function FiltersComponent({
   const resetFilters = () => {
     const resetFilters: Filters = {
       category: '',
-      priceRange: [0, 1000] as [number, number],
+      priceRange: [0, 5000] as [number, number],
       size: '',
       sortBy: 'name',
       gender: [],
@@ -179,11 +179,11 @@ export default function FiltersComponent({
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R</span>
               <input
                 type="number"
-                placeholder="Min"
+                placeholder="0"
                 value={tempFilters.priceRange?.[0] || ''}
                 onChange={(e) => {
                   const min = e.target.value ? parseInt(e.target.value) : 0;
-                  const max = tempFilters.priceRange?.[1] || 10000;
+                  const max = tempFilters.priceRange?.[1] || 5000;
                   handleTempFilterChange('priceRange', [min, max]);
                 }}
                 className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
@@ -193,10 +193,10 @@ export default function FiltersComponent({
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R</span>
               <input
                 type="number"
-                placeholder="Max"
+                placeholder="5000"
                 value={tempFilters.priceRange?.[1] || ''}
                 onChange={(e) => {
-                  const max = e.target.value ? parseInt(e.target.value) : 10000;
+                  const max = e.target.value ? parseInt(e.target.value) : 5000;
                   const min = tempFilters.priceRange?.[0] || 0;
                   handleTempFilterChange('priceRange', [min, max]);
                 }}
@@ -208,10 +208,10 @@ export default function FiltersComponent({
           {/* Display current range */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-600">
-              R{tempFilters.priceRange?.[0] || 0} - R{tempFilters.priceRange?.[1] || 1000}
+              R{tempFilters.priceRange?.[0] || 0} - R{tempFilters.priceRange?.[1] || 5000}
             </span>
             <button
-              onClick={() => handleTempFilterChange('priceRange', [0, 1000])}
+              onClick={() => handleTempFilterChange('priceRange', [0, 5000])}
               className="text-sm text-red-500 hover:text-red-700"
             >
               Reset
@@ -261,7 +261,7 @@ export default function FiltersComponent({
             {filters.priceRange && Array.isArray(filters.priceRange) && filters.priceRange.length === 2 && (
               <span className="inline-flex items-center gap-1 bg-black text-white px-3 py-1 rounded-full text-sm">
                 R{filters.priceRange[0]}-R{filters.priceRange[1]}
-                <button onClick={() => handleTempFilterChange('priceRange', [0, 1000])}>
+                <button onClick={() => handleTempFilterChange('priceRange', [0, 5000])}>
                   <X className="w-3 h-3" />
                 </button>
               </span>
