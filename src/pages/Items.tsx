@@ -436,7 +436,7 @@ export default function Items({
                   <div className="space-y-6 custom-scrollbar">
                     {filteredProducts.map((product, index) => (
                     <div 
-                      key={product.id} 
+                      key={`${product.id}-${index}`} 
                       onClick={() => handleProductClick(product)}
                       className="cursor-pointer animate-fade-in"
                       style={{
@@ -445,6 +445,7 @@ export default function Items({
                       }}
                     >
                       <ProductCard
+                        key={`product-card-${product.id}`}
                         product={product}
                         onAddToCart={onAddToCart}
                         onOpenAuth={onOpenAuth}

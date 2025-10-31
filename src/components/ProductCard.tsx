@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product } from '../types';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { cleanImageUrls, getBestImage, preloadImages } from '../utils/image-utils';
 
 interface ProductCardProps {
   product: Product;
@@ -25,22 +26,57 @@ export default function ProductCard({ product, onAddToCart, onOpenAuth, compact 
   };
 
   // Enhanced image handling with carousel functionality
-  const images = Array.isArray(product.images) && product.images.length > 0 
-    ? product.images 
-    : ['/1G5A2160.jpg'];
+  const [imageLoading, setImageLoading] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
+  const [preloadedImages, setPreloadedImages] = useState<string[]>([]);
   
-  const currentImage = images[currentImageIndex] || '/1G5A2160.jpg';
-  const hasMultipleImages = images.length > 1;
+  // Clean and validate image URLs using utility
+  const images = cleanImageUrls(product.images || []);
+  const fallbackImages = images.length > 0 ? images : ['/1G5A2160.jpg'];
+  const currentImage = fallbackImages[currentImageIndex] || '/1G5A2160.jpg';
+  const hasMultipleImages = fallbackImages.length > 1;
 
-  const handleImageError = () => {
-    setImageError(true);
+  // Reset image index when product changes
+  useEffect(() => {
+    setCurrentImageIndex(0);
+    setImageError(false);
+    setImageLoading(true);
+    setRetryCount(0);
+    setPreloadedImages([]);
+  }, [product.id, product.name]);
+
+  // Preload images for smoother experience
+  useEffect(() => {
+    if (images.length > 0) {
+      preloadImages(images).then(setPreloadedImages);
+    }
+  }, [images]);
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const target = e.target as HTMLImageElement;
+    
+    // Retry with fallback image if not already using it
+    if (target.src !== '/1G5A2160.jpg' && retryCount < 2) {
+      console.log(`ProductCard: Image failed to load, retrying: ${target.src}`);
+      setRetryCount(prev => prev + 1);
+      target.src = '/1G5A2160.jpg';
+    } else {
+      setImageError(true);
+      console.log(`ProductCard: Final fallback failed for product: ${product.name}`);
+    }
+  };
+
+  const handleImageLoad = () => {
+    setImageLoading(false);
+    setImageError(false);
   };
 
   const nextImage = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (hasMultipleImages) {
-      setCurrentImageIndex((prev) => (prev + 1) % images.length);
+      setImageLoading(true);
+      setCurrentImageIndex((prev) => (prev + 1) % fallbackImages.length);
     }
   };
 
@@ -48,7 +84,8 @@ export default function ProductCard({ product, onAddToCart, onOpenAuth, compact 
     e.preventDefault();
     e.stopPropagation();
     if (hasMultipleImages) {
-      setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+      setImageLoading(true);
+      setCurrentImageIndex((prev) => (prev - 1 + fallbackImages.length) % fallbackImages.length);
     }
   };
 
@@ -73,11 +110,27 @@ export default function ProductCard({ product, onAddToCart, onOpenAuth, compact 
       <div className={compact ? 'flex gap-4 w-full' : 'space-y-4'}>
         {/* Enhanced Image with Carousel Navigation */}
         <div className={compact ? 'w-32 h-32 flex-shrink-0 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 shadow-inner relative' : 'aspect-square w-full overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 relative shadow-inner group/image'}>
+          {/* Loading skeleton */}
+          {imageLoading && (
+            <div className="absolute inset-0 bg-gray-200 animate-pulse flex items-center justify-center">
+              <div className="w-8 h-8 text-gray-400">
+                <svg fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                </svg>
+              </div>
+            </div>
+          )}
+          
           <img
+            key={`${product.id}-${currentImageIndex}-${currentImage}`}
             src={imageError ? '/1G5A2160.jpg' : currentImage}
-            alt={product.name}
+            alt={`${product.name} - Product Image`}
             onError={handleImageError}
-            className="w-full h-full object-cover object-center transition-all duration-500 group-hover:scale-110 group-hover:brightness-105"
+            onLoad={handleImageLoad}
+            className={`w-full h-full object-cover object-center transition-all duration-500 group-hover:scale-110 group-hover:brightness-105 ${
+              imageLoading ? 'opacity-0' : 'opacity-100'
+            }`}
+            loading="lazy"
           />
           
           {/* Image Navigation for Multiple Images */}
@@ -107,7 +160,7 @@ export default function ProductCard({ product, onAddToCart, onOpenAuth, compact 
               
               {/* Image Indicator Dots */}
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 opacity-0 group-hover/image:opacity-100 transition-all duration-300">
-                {images.map((_, index) => (
+                {fallbackImages.map((_, index) => (
                   <div
                     key={index}
                     className={`w-2 h-2 rounded-full transition-all duration-200 ${
@@ -122,7 +175,7 @@ export default function ProductCard({ product, onAddToCart, onOpenAuth, compact 
           {/* Enhanced image count indicator */}
           {!compact && hasMultipleImages && (
             <div className="absolute top-3 right-3 bg-black bg-opacity-70 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full font-medium">
-              {currentImageIndex + 1}/{images.length}
+              {currentImageIndex + 1}/{fallbackImages.length}
             </div>
           )}
           

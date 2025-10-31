@@ -21,16 +21,41 @@ export default function ProductDetail({ product, onAddToCart }: { product: Produ
   const productUrl = `${window.location.origin}/product/${product?.id}`;
   useAuth();
 
-  // Auto-slideshow functionality
-  useEffect(() => {
-    if (!product?.images || product.images.length <= 1) return;
-    
-    const interval = setInterval(() => {
-      setSelectedImage(prev => (prev + 1) % product.images!.length);
-    }, 4000); // Change image every 4 seconds
+  // Enhanced image handling with better cleaning and validation
+  const [imageErrors, setImageErrors] = useState<Set<number>>(new Set());
+  const [imagesLoaded, setImagesLoaded] = useState<Set<number>>(new Set());
+  
+  const productImages = product?.images && Array.isArray(product.images) && product.images.length > 0 
+    ? product.images
+        .map(img => typeof img === 'string' ? img.trim() : '') // Clean strings
+        .filter(img => img !== '' && img !== null && img !== undefined) // Filter out invalid
+        .filter((img, index, arr) => arr.indexOf(img) === index) // Remove duplicates
+    : ['/1G5A2160.jpg']; // Fallback to default image
 
-    return () => clearInterval(interval);
-  }, [product?.images]);
+  const hasMultipleImages = productImages.length > 1;
+  const currentImageUrl = productImages[selectedImage] || productImages[0] || '/1G5A2160.jpg';
+
+  // Handle individual image errors
+  const handleImageError = (index: number) => {
+    console.log(`ProductDetail: Image ${index} failed to load: ${productImages[index]}`);
+    setImageErrors(prev => new Set(prev).add(index));
+  };
+
+  const handleImageLoad = (index: number) => {
+    setImagesLoaded(prev => new Set(prev).add(index));
+  };
+
+  // Auto-slideshow functionality - disabled by default for better user control
+  useEffect(() => {
+    if (!hasMultipleImages) return;
+    
+    // Uncomment below to enable auto-slideshow
+    // const interval = setInterval(() => {
+    //   setSelectedImage(prev => (prev + 1) % productImages.length);
+    // }, 4000); // Change image every 4 seconds
+
+    // return () => clearInterval(interval);
+  }, [hasMultipleImages, productImages.length]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -70,26 +95,59 @@ export default function ProductDetail({ product, onAddToCart }: { product: Produ
   ];
 
   const nextImage = () => {
-    if (product?.images && product.images.length > 1) {
+    if (hasMultipleImages) {
       setImageLoading(true);
-      setSelectedImage((prev) => (prev + 1) % product.images!.length);
+      setSelectedImage((prev) => (prev + 1) % productImages.length);
       setTimeout(() => setImageLoading(false), 200);
     }
   };
 
   const prevImage = () => {
-    if (product?.images && product.images.length > 1) {
+    if (hasMultipleImages) {
       setImageLoading(true);
-      setSelectedImage((prev) => (prev - 1 + product.images!.length) % product.images!.length);
+      setSelectedImage((prev) => (prev - 1 + productImages.length) % productImages.length);
       setTimeout(() => setImageLoading(false), 200);
     }
   };
 
   const selectImage = (index: number) => {
-    setImageLoading(true);
-    setSelectedImage(index);
-    setTimeout(() => setImageLoading(false), 200);
+    if (index >= 0 && index < productImages.length) {
+      setImageLoading(true);
+      setSelectedImage(index);
+      setTimeout(() => setImageLoading(false), 200);
+    }
   };
+
+  // Reset selected image if it's out of bounds
+  useEffect(() => {
+    if (selectedImage >= productImages.length) {
+      setSelectedImage(0);
+    }
+  }, [selectedImage, productImages.length]);
+
+  // Keyboard navigation support
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        prevImage();
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        nextImage();
+      } else if (event.key === 'Escape' && isImageFullscreen) {
+        event.preventDefault();
+        setIsImageFullscreen(false);
+      }
+    };
+
+    if (hasMultipleImages || isImageFullscreen) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [hasMultipleImages, isImageFullscreen, prevImage, nextImage]);
 
   if (!product) {
     return (
@@ -169,38 +227,50 @@ export default function ProductDetail({ product, onAddToCart }: { product: Produ
           <div className="space-y-6">
             {/* Main Image Display */}
             <div className="relative group">
-              <div className="aspect-square rounded-2xl overflow-hidden bg-white shadow-lg relative">
+              <div className="aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 shadow-lg relative">
+                {/* Loading skeleton */}
+                {!imagesLoaded.has(selectedImage) && (
+                  <div className="absolute inset-0 bg-gray-200 animate-pulse flex items-center justify-center">
+                    <div className="w-16 h-16 text-gray-400">
+                      <svg fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                      </svg>
+                    </div>
+                  </div>
+                )}
+                
                 <img 
-                  src={product.images?.[selectedImage] || product.images?.[0] || '/1G5A2160.jpg'}
-                  alt={product.name}
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    if (target.src !== '/1G5A2160.jpg') {
-                      target.src = '/1G5A2160.jpg';
-                    }
-                  }}
-                  className={`w-full h-full object-cover transition-all duration-300 ${imageLoading ? 'opacity-70 scale-105' : 'opacity-100 scale-100'}`}
+                  src={imageErrors.has(selectedImage) ? '/1G5A2160.jpg' : currentImageUrl}
+                  alt={`${product.name} - High quality product image ${selectedImage + 1}`}
+                  onError={() => handleImageError(selectedImage)}
+                  onLoad={() => handleImageLoad(selectedImage)}
+                  className={`w-full h-full object-cover transition-all duration-500 ${
+                    imagesLoaded.has(selectedImage) ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
+                  } ${imageLoading ? 'blur-sm' : ''}`}
+                  loading="eager"
                 />
                 
-                {/* Loading overlay */}
-                {imageLoading && (
-                  <div className="absolute inset-0 bg-white bg-opacity-30 flex items-center justify-center">
-                    <div className="w-8 h-8 border-2 border-gray-300 border-t-black rounded-full animate-spin"></div>
+                {/* Image quality indicator */}
+                {imagesLoaded.has(selectedImage) && !imageErrors.has(selectedImage) && (
+                  <div className="absolute top-2 left-2 px-2 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                    HD Quality
                   </div>
                 )}
 
-                {/* Navigation Arrows */}
-                {product.images && product.images.length > 1 && (
+                {/* Navigation Arrows - Enhanced */}
+                {hasMultipleImages && (
                   <>
                     <button
                       onClick={prevImage}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full shadow-lg flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+                      className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-black bg-opacity-70 hover:bg-opacity-90 text-white rounded-full shadow-lg flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 z-10"
+                      aria-label="Previous image"
                     >
                       <ChevronLeft className="w-6 h-6" />
                     </button>
                     <button
                       onClick={nextImage}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full shadow-lg flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-black bg-opacity-70 hover:bg-opacity-90 text-white rounded-full shadow-lg flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 z-10"
+                      aria-label="Next image"
                     >
                       <ChevronRight className="w-6 h-6" />
                     </button>
@@ -215,54 +285,81 @@ export default function ProductDetail({ product, onAddToCart }: { product: Produ
                   <Expand className="w-5 h-5" />
                 </button>
 
-                {/* Image Counter */}
-                {product.images && product.images.length > 1 && (
-                  <div className="absolute bottom-4 left-4 px-3 py-1 bg-black bg-opacity-60 text-white text-sm rounded-full">
-                    {selectedImage + 1} / {product.images.length}
+                {/* Enhanced Image Counter */}
+                {hasMultipleImages && (
+                  <div className="absolute bottom-4 left-4 px-4 py-2 bg-black bg-opacity-75 backdrop-blur-sm text-white text-sm font-medium rounded-full border border-white/20">
+                    {selectedImage + 1} / {productImages.length}
+                  </div>
+                )}
+                
+                {/* Image Navigation Instructions */}
+                {hasMultipleImages && (
+                  <div className="absolute top-4 left-4 px-3 py-1 bg-black bg-opacity-60 backdrop-blur-sm text-white text-xs rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300">
+                    Click arrows or thumbnails to navigate
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Thumbnail Navigation */}
-            {product.images && product.images.length > 1 && (
+            {/* Enhanced Thumbnail Navigation */}
+            {hasMultipleImages && (
               <div className="grid grid-cols-5 gap-3">
-                {product.images.map((image, index) => (
+                {productImages.map((image, index) => (
                   <button
                     key={index}
                     onClick={() => selectImage(index)}
-                    className={`aspect-square rounded-lg overflow-hidden bg-white shadow-sm transition-all ${
+                    className={`aspect-square rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 shadow-sm transition-all cursor-pointer relative ${
                       selectedImage === index 
-                        ? 'ring-2 ring-black shadow-md' 
-                        : 'hover:shadow-md hover:scale-105'
+                        ? 'ring-3 ring-black shadow-lg scale-105' 
+                        : 'hover:shadow-md hover:scale-105 hover:ring-2 hover:ring-gray-300'
                     }`}
                   >
-                    <img 
-                      src={image || '/1G5A2160.jpg'}
-                      alt={`${product.name} view ${index + 1}`}
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        if (target.src !== '/1G5A2160.jpg') {
-                          target.src = '/1G5A2160.jpg';
-                        }
-                      }}
-                      className="w-full h-full object-cover"
+                    {/* Thumbnail loading skeleton */}
+                    {!imagesLoaded.has(index) && (
+                      <div className="absolute inset-0 bg-gray-200 animate-pulse flex items-center justify-center">
+                        <div className="w-4 h-4 text-gray-400">
+                          <svg fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                          </svg>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <img
+                      src={imageErrors.has(index) ? '/1G5A2160.jpg' : image}
+                      alt={`${product.name} thumbnail ${index + 1}`}
+                      onError={() => handleImageError(index)}
+                      onLoad={() => handleImageLoad(index)}
+                      className={`w-full h-full object-cover transition-opacity duration-300 ${
+                        imagesLoaded.has(index) ? 'opacity-100' : 'opacity-0'
+                      }`}
+                      loading="lazy"
                     />
+                    
+                    {/* Active indicator */}
+                    {selectedImage === index && (
+                      <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
+                        <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                          <div className="w-2 h-2 bg-black rounded-full"></div>
+                        </div>
+                      </div>
+                    )}
                   </button>
                 ))}
               </div>
-            )}
-
-            {/* Image Indicators */}
-            {product.images && product.images.length > 1 && (
+            )}            {/* Enhanced Image Indicators */}
+            {hasMultipleImages && (
               <div className="flex justify-center space-x-2">
-                {product.images.map((_, index) => (
+                {productImages.map((_, index) => (
                   <button
                     key={index}
                     onClick={() => selectImage(index)}
-                    className={`w-2 h-2 rounded-full transition-all ${
-                      selectedImage === index ? 'bg-black' : 'bg-gray-300 hover:bg-gray-400'
+                    className={`w-3 h-3 rounded-full transition-all border ${
+                      selectedImage === index 
+                        ? 'bg-black border-black scale-125' 
+                        : 'bg-gray-300 border-gray-300 hover:bg-gray-400 hover:border-gray-400 hover:scale-110'
                     }`}
+                    aria-label={`View image ${index + 1}`}
                   />
                 ))}
               </div>
@@ -477,43 +574,62 @@ export default function ProductDetail({ product, onAddToCart }: { product: Produ
         </div>
       </div>
 
-      {/* Fullscreen Image Modal */}
+      {/* Enhanced Fullscreen Image Modal */}
       {isImageFullscreen && (
-        <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4">
-          <div className="relative max-w-4xl max-h-full">
+        <div className="fixed inset-0 bg-black bg-opacity-95 z-50 flex items-center justify-center p-4">
+          <div className="relative max-w-6xl max-h-full">
             <img
-              src={product.images?.[selectedImage] || '/1G5A2160.jpg'}
-              alt={product.name}
+              src={currentImageUrl}
+              alt={`${product.name} - Fullscreen view ${selectedImage + 1}`}
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
                 if (target.src !== '/1G5A2160.jpg') {
                   target.src = '/1G5A2160.jpg';
                 }
               }}
-              className="max-w-full max-h-full object-contain"
+              className="max-w-full max-h-full object-contain rounded-lg"
             />
+            
+            {/* Close Button */}
             <button
               onClick={() => setIsImageFullscreen(false)}
-              className="absolute top-4 right-4 w-10 h-10 bg-white bg-opacity-20 hover:bg-opacity-40 rounded-full flex items-center justify-center text-white transition-all"
+              className="absolute top-4 right-4 w-12 h-12 bg-white bg-opacity-20 hover:bg-opacity-40 rounded-full flex items-center justify-center text-white transition-all backdrop-blur-sm"
+              aria-label="Close fullscreen view"
             >
               ×
             </button>
-            {product.images && product.images.length > 1 && (
+            
+            {/* Image Counter in Fullscreen */}
+            {hasMultipleImages && (
+              <div className="absolute top-4 left-4 px-4 py-2 bg-white bg-opacity-20 backdrop-blur-sm text-white text-sm font-medium rounded-full">
+                {selectedImage + 1} / {productImages.length}
+              </div>
+            )}
+            
+            {/* Navigation in Fullscreen */}
+            {hasMultipleImages && (
               <>
                 <button
                   onClick={prevImage}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white bg-opacity-20 hover:bg-opacity-40 rounded-full flex items-center justify-center text-white transition-all"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-14 h-14 bg-white bg-opacity-20 hover:bg-opacity-40 rounded-full flex items-center justify-center text-white transition-all backdrop-blur-sm"
+                  aria-label="Previous image"
                 >
-                  <ChevronLeft className="w-6 h-6" />
+                  <ChevronLeft className="w-7 h-7" />
                 </button>
                 <button
                   onClick={nextImage}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 bg-white bg-opacity-20 hover:bg-opacity-40 rounded-full flex items-center justify-center text-white transition-all"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 bg-white bg-opacity-20 hover:bg-opacity-40 rounded-full flex items-center justify-center text-white transition-all backdrop-blur-sm"
+                  aria-label="Next image"
                 >
-                  <ChevronRight className="w-6 h-6" />
+                  <ChevronRight className="w-7 h-7" />
                 </button>
               </>
             )}
+            
+            {/* Keyboard Navigation Hint */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-white bg-opacity-20 backdrop-blur-sm text-white text-xs rounded-full">
+              Use arrow keys or click buttons to navigate • ESC to close
+            </div>
           </div>
         </div>
       )}

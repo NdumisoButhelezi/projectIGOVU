@@ -9,10 +9,18 @@ interface AdminUploadProps {
 }
 
 export default function AdminUpload({ isOpen, onClose, onSubmit, initialProduct }: AdminUploadProps) {
-  const [sizes, setSizes] = useState<string[]>(initialProduct?.sizes || ['']);
-  const [images, setImages] = useState<string[]>(initialProduct?.images || ['']);
-  const [features, setFeatures] = useState<string[]>(initialProduct?.features || ['']);
-  const [care, setCare] = useState<string[]>(initialProduct?.care || ['']);
+  const [sizes, setSizes] = useState<string[]>(
+    Array.isArray(initialProduct?.sizes) ? initialProduct.sizes : ['']
+  );
+  const [images, setImages] = useState<string[]>(
+    Array.isArray(initialProduct?.images) ? initialProduct.images : ['']
+  );
+  const [features, setFeatures] = useState<string[]>(
+    Array.isArray(initialProduct?.features) ? initialProduct.features : ['']
+  );
+  const [care, setCare] = useState<string[]>(
+    Array.isArray(initialProduct?.care) ? initialProduct.care : ['']
+  );
   const [formData, setFormData] = useState({
     name: initialProduct?.name || '',
     price: initialProduct?.price?.toString() || '',
@@ -173,7 +181,7 @@ export default function AdminUpload({ isOpen, onClose, onSubmit, initialProduct 
                 )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {images.map((image, index) => (
+                {Array.isArray(images) && images.map((image, index) => (
                   <div key={index} className="relative group">
                     <div className="aspect-w-3 aspect-h-4 rounded-lg overflow-hidden bg-gray-100 border-2 border-dashed border-gray-300 hover:border-black transition-colors">
                       {image ? (

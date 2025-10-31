@@ -62,18 +62,36 @@ function App() {
       const productsData = snapshot.docs.map((doc) => {
         const data = doc.data();
         
-        // Reconstruct images array from individual image fields (chunked format)
+        // Enhanced image reconstruction with better validation
         const images: string[] = [];
         let imageIndex = 0;
+        
+        // Reconstruct from chunked format (images.0, images.1, etc.)
         while (data[`images.${imageIndex}`]) {
-          images.push(data[`images.${imageIndex}`]);
+          const imageUrl = data[`images.${imageIndex}`];
+          if (imageUrl && typeof imageUrl === 'string' && imageUrl.trim() !== '') {
+            images.push(imageUrl.trim());
+          }
           imageIndex++;
         }
         
         // If no chunked images found, use the original images array
         if (images.length === 0 && data.images && Array.isArray(data.images)) {
-          images.push(...data.images);
+          const validImages = data.images
+            .filter(img => img && typeof img === 'string' && img.trim() !== '')
+            .map(img => img.trim());
+          images.push(...validImages);
         }
+        
+        // Remove duplicates and ensure all URLs are valid
+        const cleanImages = [...new Set(images)].filter(img => {
+          try {
+            // Basic URL validation
+            return img.startsWith('http') || img.startsWith('/') || img.startsWith('data:');
+          } catch {
+            return false;
+          }
+        });
         
         // Construct proper product object
         const product = {
@@ -84,7 +102,7 @@ function App() {
           description: data.description || '',
           sizes: data.sizes || data.size || [],
           stock: Number(data.stock) || 0,
-          images: images.length > 0 ? images : (data.images || []),
+          images: cleanImages.length > 0 ? cleanImages : ['/1G5A2160.jpg'],
           color: data.color || '',
           collection: data.collection || '',
           features: data.features || [],

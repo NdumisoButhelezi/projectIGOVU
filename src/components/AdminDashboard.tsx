@@ -167,11 +167,37 @@ export default function AdminDashboard() {
     setToast(`Status updated: ${status.replace(/(^| )\w/g, s => s.toUpperCase())}`);
   };
 
-  // Delete product
-  const deleteProduct = async (id: string) => {
-    await deleteDoc(doc(db, "products", id));
-    setProducts(ps => ps.filter(p => p.id !== id));
-    setToast("Product deleted");
+  // Delete product with confirmation and error handling
+  const deleteProduct = async (id: string, productName: string = '') => {
+    try {
+      // Confirm deletion
+      const confirmed = window.confirm(
+        `Are you sure you want to delete the product "${productName}"?\n\nThis action cannot be undone.`
+      );
+      
+      if (!confirmed) {
+        return;
+      }
+
+      console.log(`AdminDashboard: Attempting to delete product: ${id}`);
+      
+      // Delete from Firestore
+      await deleteDoc(doc(db, "products", id));
+      
+      // Update local state
+      setProducts(ps => {
+        const filtered = ps.filter(p => p.id !== id);
+        console.log(`AdminDashboard: Updated products list, removed ${id}. New count: ${filtered.length}`);
+        return filtered;
+      });
+      
+      setToast(`Product "${productName}" deleted successfully`);
+      console.log(`AdminDashboard: Product ${id} deleted successfully`);
+      
+    } catch (error) {
+      console.error('AdminDashboard: Error deleting product:', error);
+      setToast(`Failed to delete product: ${error}`);
+    }
   };
 
   // Edit product
@@ -648,7 +674,13 @@ export default function AdminDashboard() {
                 </td>
                 <td className="border px-2 py-1 space-x-1">
                   <button onClick={() => handleEditProduct(product)} className="px-2 py-1 bg-yellow-500 hover:bg-yellow-700 text-white rounded shadow">Edit</button>
-                  <button onClick={() => deleteProduct(product.id)} className="px-2 py-1 bg-red-500 hover:bg-red-700 text-white rounded shadow">Delete</button>
+                  <button 
+                    onClick={() => deleteProduct(product.id, product.name)} 
+                    className="px-2 py-1 bg-red-500 hover:bg-red-700 text-white rounded shadow transition-colors"
+                    title={`Delete ${product.name}`}
+                  >
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}

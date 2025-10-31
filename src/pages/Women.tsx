@@ -274,7 +274,7 @@ export default function Women({ onAddToCart, onOpenAuth }: WomenProps) {
             }>
               {filteredProducts.map((product, index) => (
                 <div 
-                  key={product.id} 
+                  key={`women-${product.id}-${index}`} 
                   className={`cursor-pointer animate-fade-in ${
                     viewMode === 'grid' 
                       ? 'transform hover:-translate-y-2 transition-all duration-300' 
@@ -288,6 +288,7 @@ export default function Women({ onAddToCart, onOpenAuth }: WomenProps) {
                 >
                   <div className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 p-2 border border-gray-100 hover:border-gray-200 bg-gradient-to-br from-white to-purple-50">
                     <ProductCard
+                      key={`women-product-card-${product.id}`}
                       product={product}
                       onAddToCart={onAddToCart}
                       onOpenAuth={onOpenAuth}
