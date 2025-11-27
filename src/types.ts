@@ -2,7 +2,8 @@ export interface Product {
   id: string; // changed from number to string
   name: string;
   price: number;
-  images?: string[];
+  images?: string[]; // Firebase Storage download URLs
+  imagePaths?: string[]; // Firebase Storage paths for deletion
   category: string;
   description?: string;
   gender?: string;

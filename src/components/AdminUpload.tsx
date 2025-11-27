@@ -1,5 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { X, Upload, Plus, Minus, Image as ImageIcon, Camera, Trash2 } from 'lucide-react';
+import { deleteImage } from '../services/firebase-storage';
+import { uploadImageWithProgress } from '../services/firebase-storage-progressive';
+import { auth } from '../config/firebase';
+import { testDirectUpload } from '../utils/test-direct-upload';
 
 interface AdminUploadProps {
   isOpen: boolean;
@@ -15,6 +19,10 @@ export default function AdminUpload({ isOpen, onClose, onSubmit, initialProduct 
   const [images, setImages] = useState<string[]>(
     Array.isArray(initialProduct?.images) ? initialProduct.images : ['']
   );
+  const [imagePaths, setImagePaths] = useState<string[]>(
+    Array.isArray(initialProduct?.imagePaths) ? initialProduct.imagePaths : ['']
+  );
+  const [uploadingImages, setUploadingImages] = useState<{ [key: number]: boolean }>({});
   const [features, setFeatures] = useState<string[]>(
     Array.isArray(initialProduct?.features) ? initialProduct.features : ['']
   );
@@ -70,19 +78,86 @@ export default function AdminUpload({ isOpen, onClose, onSubmit, initialProduct 
     }));
   };
 
-  const handleImageUpload = useCallback((index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = useCallback(async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setImages(prev => {
-          const newImages = [...prev];
-          newImages[index] = base64String;
-          return newImages;
+    if (!file) return;
+
+    try {
+      // Set uploading state
+      setUploadingImages(prev => ({ ...prev, [index]: true }));
+
+      // Log authentication details
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        console.log('Current user authentication details:', {
+          uid: currentUser.uid,
+          email: currentUser.email,
+          emailVerified: currentUser.emailVerified,
+          providerId: currentUser.providerId,
+          displayName: currentUser.displayName,
+          photoURL: currentUser.photoURL
         });
-      };
-      reader.readAsDataURL(file);
+
+        // Get ID token for additional details
+        const tokenResult = await currentUser.getIdTokenResult();
+        console.log('Firebase ID Token claims:', tokenResult.claims);
+      } else {
+        console.warn('No user is currently authenticated');
+      }
+
+      console.log('AdminUpload: Processing image file:', file.name, 'Size:', Math.round(file.size / 1024), 'KB');
+
+      // Upload to Firebase Storage in the "Images" folder with progress tracking
+      const result = await uploadImageWithProgress(file, 'Images', true, (progress) => {
+        console.log(`Upload progress: ${progress.percentage}%`);
+      });
+
+      // Update images array with the download URL
+      setImages(prev => {
+        const newImages = [...prev];
+        newImages[index] = result.url;
+        console.log('AdminUpload: Image uploaded successfully:', {
+          index,
+          url: result.url,
+          path: result.path,
+          size: `${Math.round(result.size / 1024)}KB`
+        });
+        return newImages;
+      });
+
+      // Update image paths array for deletion tracking
+      setImagePaths(prev => {
+        const newPaths = [...prev];
+        newPaths[index] = result.path;
+        return newPaths;
+      });
+
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      
+      // User-friendly error messages
+      let errorMessage = 'Failed to upload image. Please try again.';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('CORS') || error.message.includes('timeout')) {
+          errorMessage = '⚠️ Upload taking too long. This is a known CORS issue in development.\n\n' +
+                        '✅ Solution: Deploy your app to production (Vercel/Firebase Hosting) where uploads will work perfectly!\n\n' +
+                        'For now, you can:\n' +
+                        '• Use smaller test images\n' +
+                        '• Continue development and test uploads after deployment';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      alert(errorMessage);
+    } finally {
+      // Clear uploading state
+      setUploadingImages(prev => {
+        const newState = { ...prev };
+        delete newState[index];
+        return newState;
+      });
     }
   }, []);
 
@@ -101,6 +176,25 @@ export default function AdminUpload({ isOpen, onClose, onSubmit, initialProduct 
 
   const handleArrayRemove = (index: number, setArray: React.Dispatch<React.SetStateAction<string[]>>) => {
     setArray(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleImageRemove = async (index: number) => {
+    const imagePath = imagePaths[index];
+    
+    // If it's a Firebase Storage URL, delete from storage
+    if (imagePath && imagePath !== '') {
+      try {
+        await deleteImage(imagePath);
+        console.log('Image deleted from Firebase Storage:', imagePath);
+      } catch (error) {
+        console.error('Error deleting image:', error);
+        // Continue with removal from state even if deletion fails
+      }
+    }
+
+    // Remove from state arrays
+    setImages(prev => prev.filter((_, i) => i !== index));
+    setImagePaths(prev => prev.filter((_, i) => i !== index));
   };
 
   // On submit, convert dimension/weight fields to numbers if present
@@ -134,6 +228,8 @@ export default function AdminUpload({ isOpen, onClose, onSubmit, initialProduct 
     if (filteredSizes.length) productData.sizes = filteredSizes;
     const filteredImages = images.filter(Boolean);
     if (filteredImages.length) productData.images = filteredImages;
+    const filteredImagePaths = imagePaths.filter(Boolean);
+    if (filteredImagePaths.length) productData.imagePaths = filteredImagePaths;
     const filteredFeatures = features.filter(Boolean);
     if (filteredFeatures.length) productData.features = filteredFeatures;
     const filteredCare = care.filter(Boolean);
@@ -153,12 +249,29 @@ export default function AdminUpload({ isOpen, onClose, onSubmit, initialProduct 
             <h2 className="text-3xl font-bold text-gray-900 bg-gradient-to-r from-black to-gray-700 bg-clip-text text-transparent">
               Add New Product
             </h2>
-            <button 
-              onClick={onClose} 
-              className="text-gray-400 hover:text-gray-500 transition-colors transform hover:scale-110"
-            >
-              <X className="h-6 w-6" />
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  console.log('Testing Firebase Storage...');
+                  try {
+                    await testDirectUpload();
+                    alert('Storage test passed! Upload should work.');
+                  } catch (error) {
+                    alert('Storage test failed. Check console for details.');
+                  }
+                }}
+                className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Test Storage
+              </button>
+              <button 
+                onClick={onClose} 
+                className="text-gray-400 hover:text-gray-500 transition-colors transform hover:scale-110"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-8">
@@ -184,7 +297,12 @@ export default function AdminUpload({ isOpen, onClose, onSubmit, initialProduct 
                 {Array.isArray(images) && images.map((image, index) => (
                   <div key={index} className="relative group">
                     <div className="aspect-w-3 aspect-h-4 rounded-lg overflow-hidden bg-gray-100 border-2 border-dashed border-gray-300 hover:border-black transition-colors">
-                      {image ? (
+                      {uploadingImages[index] ? (
+                        <div className="w-full h-full flex flex-col items-center justify-center">
+                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
+                          <span className="mt-2 text-sm text-gray-500">Uploading...</span>
+                        </div>
+                      ) : image ? (
                         <div className="relative">
                           <img
                             src={image}
@@ -193,7 +311,7 @@ export default function AdminUpload({ isOpen, onClose, onSubmit, initialProduct 
                           />
                           <button
                             type="button"
-                            onClick={() => handleArrayRemove(index, setImages)}
+                            onClick={() => handleImageRemove(index)}
                             className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                           >
                             <Trash2 className="h-4 w-4" />

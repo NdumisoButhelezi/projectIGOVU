@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import AdminUpload from "./AdminUpload";
-import { collection, getDocs, getFirestore, updateDoc, doc, deleteDoc, addDoc } from "firebase/firestore";
+import { collection, getDocs, getFirestore, updateDoc, doc, deleteDoc, addDoc, deleteField } from "firebase/firestore";
 import { app } from "../config/firebase";
 import { useNavigate } from "react-router-dom";
 
@@ -207,35 +207,47 @@ export default function AdminDashboard() {
   };
   const handleUpdateProduct = async (updated: any) => {
     try {
-      // Store images separately
-      const images = updated.images || [];
+      console.log("AdminDashboard: Updating product:", updated.name, "with", updated.images?.length || 0, "images");
+      console.log("AdminDashboard: Raw images data:", updated.images);
       
-      // Update product without images first
-      const productWithoutImages = {
+      // Validate and clean images
+      const cleanImages = Array.isArray(updated.images) 
+        ? updated.images.filter((img: unknown) => typeof img === 'string' && img.trim() !== '')
+        : [];
+        
+      console.log("AdminDashboard: Cleaned images count:", cleanImages.length);
+      
+      // Prepare the complete product data
+      const productData = {
         ...updated,
-        images: [], // Clear images array temporarily
+        images: cleanImages,
         lastUpdated: new Date().toISOString()
       };
       
-      // Update the base product data
-      await updateDoc(doc(db, "products", updated.id), productWithoutImages);
-      
-      // If there are images, update them in chunks
-      if (images.length > 0) {
-        for (let i = 0; i < images.length; i++) {
-          try {
-            // Update each image individually
-            await updateDoc(doc(db, "products", updated.id), {
-              [`images.${i}`]: images[i]
-            });
-          } catch (error) {
-            console.error(`Error updating image ${i}:`, error);
-            // Continue with other images even if one fails
-          }
-        }
+      // First, clean up any existing chunked image fields
+      const fieldsToDelete: any = {};
+      for (let i = 0; i < 20; i++) { // Clean up to 20 possible image chunks
+        fieldsToDelete[`images.${i}`] = deleteField();
       }
       
-      setProducts(ps => ps.map(p => p.id === updated.id ? { ...productWithoutImages, images } : p));
+      console.log("AdminDashboard: Cleaning up old chunked fields...");
+      
+      // Remove old chunked fields first
+      try {
+        await updateDoc(doc(db, "products", updated.id), fieldsToDelete);
+        console.log("AdminDashboard: Old chunked fields cleaned up");
+      } catch (cleanupError) {
+        console.log("AdminDashboard: Cleanup not needed or failed (normal if no chunked fields exist)");
+      }
+      
+      // Now update with the new product data
+      console.log("AdminDashboard: Updating with new product data...");
+      await updateDoc(doc(db, "products", updated.id), productData);
+      
+      console.log("AdminDashboard: Product updated successfully");
+      
+      // Update local state
+      setProducts(ps => ps.map(p => p.id === updated.id ? productData : p));
       setShowEditProduct(false);
       setEditProduct(null);
       setToast("Product updated successfully");
@@ -243,20 +255,57 @@ export default function AdminDashboard() {
       // Notify other components that a product was updated
       window.dispatchEvent(new CustomEvent('productUpdated', { detail: { productId: updated.id } }));
     } catch (error) {
-      console.error("Error updating product:", error);
+      console.error("AdminDashboard: Error updating product:", error);
       setToast("Error updating product. Please try again.");
     }
   };
 
-  // Create product in Firestore with chunked image handling
+  // Create product in Firestore with proper image handling
   const handleCreateProduct = async (product: any) => {
     try {
-      console.log("AdminDashboard: Creating new product:", product.name);
+      console.log("AdminDashboard: Creating new product:", product.name, "with", product.images?.length || 0, "images");
       
-      // Temporarily store images
-      const images = product.images || [];
+      // Validate and process images (now supporting both base64 and Firebase Storage URLs)
+      const processedImages = Array.isArray(product.images) 
+        ? product.images.filter((img: string) => {
+            if (!img || typeof img !== 'string') return false;
+            
+            // Check if it's a Firebase Storage URL or base64
+            const isFirebaseUrl = img.includes('firebasestorage.googleapis.com');
+            
+            if (!isFirebaseUrl) {
+              // Check base64 image size
+              const sizeKB = Math.round((img.length * 0.75) / 1024);
+              if (sizeKB > 500) {
+                console.warn('AdminDashboard: Large base64 image detected:', sizeKB, 'KB - may cause Firebase issues');
+              }
+            } else {
+              console.log('AdminDashboard: Firebase Storage URL detected:', img.substring(0, 100) + '...');
+            }
+            
+            return img.trim() !== '';
+          })
+        : [];
       
-      // Ensure required fields are present
+      // Also process image paths if available
+      const processedImagePaths = Array.isArray(product.imagePaths)
+        ? product.imagePaths.filter((path: string) => path && path.trim() !== '')
+        : [];
+      
+      console.log("AdminDashboard: Processed", processedImages.length, "valid images and", processedImagePaths.length, "image paths");
+      
+      // Calculate total document size estimate
+      const totalSize = JSON.stringify(product).length;
+      const totalSizeKB = Math.round(totalSize / 1024);
+      console.log("AdminDashboard: Estimated document size:", totalSizeKB, "KB");
+      
+      if (totalSizeKB > 800) { // Firebase limit is ~1MB
+        console.error("AdminDashboard: Document may be too large for Firebase!");
+        setToast("Product data is too large. Please use smaller images or ensure images are uploaded to Firebase Storage.");
+        return;
+      }
+      
+      // Ensure required fields are present and images are properly handled
       const productData = {
         ...product,
         name: product.name || '',
@@ -264,35 +313,22 @@ export default function AdminDashboard() {
         category: product.category || '',
         description: product.description || '',
         stock: Number(product.stock) || 0,
-        images: [], // Clear images array temporarily - will be added in chunks
+        images: processedImages, // Use validated images (URLs or base64)
+        imagePaths: processedImagePaths, // Store Firebase Storage paths for deletion
         timestamp: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         lastUpdated: new Date().toISOString()
       };
       
-      console.log("AdminDashboard: Product data to save:", productData);
+      console.log("AdminDashboard: Final product data:", {
+        name: productData.name,
+        images: productData.images.length,
+        totalSizeKB: Math.round(JSON.stringify(productData).length / 1024)
+      });
       
-      // Add the product document first
+      // Add the product document with all data including images
       const docRef = await addDoc(collection(db, "products"), productData);
-      console.log("AdminDashboard: Product created with ID:", docRef.id);
-      
-      // If there are images, update them in chunks
-      if (images.length > 0) {
-        console.log("AdminDashboard: Adding", images.length, "images");
-        // Process each image
-        for (let i = 0; i < images.length; i++) {
-          try {
-            // Update the product document with each image
-            await updateDoc(doc(db, "products", docRef.id), {
-              [`images.${i}`]: images[i]
-            });
-            console.log(`AdminDashboard: Added image ${i + 1}/${images.length}`);
-          } catch (error) {
-            console.error(`AdminDashboard: Error uploading image ${i}:`, error);
-            // Continue with other images even if one fails
-          }
-        }
-      }
+      console.log("AdminDashboard: Product created successfully with ID:", docRef.id);
       
       setShowCreateProduct(false);
       setToast("Product created successfully");
@@ -332,6 +368,59 @@ export default function AdminDashboard() {
     return product ? product.name : productId; // Fallback to ID if product not found
   };
 
+  // Cleanup function to fix image data issues
+  const cleanupImageData = async () => {
+    try {
+      setToast("Starting image data cleanup...");
+      console.log("AdminDashboard: Starting image data cleanup");
+      
+      const querySnapshot = await getDocs(collection(db, "products"));
+      let cleanedCount = 0;
+      
+      for (const docSnapshot of querySnapshot.docs) {
+        const data = docSnapshot.data();
+        const productId = docSnapshot.id;
+        
+        // Check if product has chunked image fields
+        let hasChunkedFields = false;
+        const chunkedImages: string[] = [];
+        
+        for (let i = 0; i < 20; i++) {
+          if (data[`images.${i}`]) {
+            hasChunkedFields = true;
+            chunkedImages.push(data[`images.${i}`]);
+          }
+        }
+        
+        if (hasChunkedFields) {
+          console.log(`AdminDashboard: Cleaning chunked images for product: ${data.name}`);
+          
+          // Remove chunked fields and set proper images array
+          const fieldsToDelete: any = {};
+          for (let i = 0; i < 20; i++) {
+            fieldsToDelete[`images.${i}`] = deleteField();
+          }
+          
+          // Update with cleaned data
+          await updateDoc(doc(db, "products", productId), {
+            ...fieldsToDelete,
+            images: chunkedImages,
+            lastUpdated: new Date().toISOString()
+          });
+          
+          cleanedCount++;
+        }
+      }
+      
+      setToast(`Image data cleanup completed. Fixed ${cleanedCount} products.`);
+      console.log(`AdminDashboard: Cleanup completed. Fixed ${cleanedCount} products.`);
+      
+    } catch (error) {
+      console.error("AdminDashboard: Error during cleanup:", error);
+      setToast("Error during image data cleanup. Please try again.");
+    }
+  };
+
   return (
     <div className="p-6">
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
@@ -359,6 +448,12 @@ export default function AdminDashboard() {
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-1" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
           </svg>
+        </button>
+        <button
+          className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 transition-colors"
+          onClick={cleanupImageData}
+        >
+          Fix Image Data
         </button>
       </div>
       
